@@ -23,7 +23,7 @@ export const Route = createRootRoute({
       throw redirect({ to: "/login" });
     }
   },
-  component: () => {
+  component: function RootLayout() {
     const user = useAuthStore((s) => s.user);
     const initialized = useAuthStore((s) => s.initialized);
     const isAnonymous = user?.is_anonymous ?? false;
