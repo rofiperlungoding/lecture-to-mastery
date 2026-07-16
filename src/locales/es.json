@@ -1,0 +1,47 @@
+{
+  "common.save": "Guardar",
+  "common.cancel": "Cancelar",
+  "common.delete": "Eliminar",
+  "common.edit": "Editar",
+  "common.close": "Cerrar",
+  "common.loading": "Cargando...",
+  "common.error": "Error",
+  "common.retry": "Reintentar",
+  "common.search": "Buscar",
+  "common.back": "Atrás",
+  "common.next": "Siguiente",
+  "common.submit": "Enviar",
+  "common.start": "Comenzar",
+  "common.practice": "Practicar",
+  "common.review": "Repasar",
+  "common.done": "Hecho",
+
+  "dashboard.title": "Tu Panel",
+  "dashboard.cardsDue": "Tarjetas pendientes",
+  "dashboard.studyStreak": "Racha de estudio",
+  "dashboard.avgMastery": "Dominio promedio",
+  "dashboard.documents": "Documentos",
+  "dashboard.needRefresh": "Necesitan repaso",
+  "dashboard.continueStudying": "Continuar estudiando",
+
+  "exam.title": "Examen de práctica",
+  "exam.start": "Comenzar examen",
+  "exam.submit": "Enviar",
+  "exam.newExam": "Nuevo examen",
+  "exam.practiceMissed": "Practicar conceptos fallidos",
+  "exam.flag": "Marcar",
+  "exam.flagged": "Marcado",
+
+  "concept.atRisk": "En riesgo",
+  "concept.predictedRetention": "Retención prevista",
+
+  "retention.title": "Retención prevista",
+  "retention.estimate": "Las predicciones son estimaciones basadas en tu historial de repaso y la curva de olvido de Ebbinghaus.",
+
+  "language.english": "Inglés",
+  "language.spanish": "Español",
+  "language.french": "Francés",
+  "language.german": "Alemán",
+  "cards.due": "{count} tarjeta pendiente",
+  "cards.due_plural": "{count} tarjetas pendientes"
+}

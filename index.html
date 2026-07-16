@@ -3,8 +3,44 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Lecture-to-Mastery</title>
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192.svg" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#3366FF" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="L2M" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="Lecture-to-Mastery — Turn lectures into structured summaries, flashcards, quizzes, and interactive study tools powered by AI." />
+    <meta property="og:title" content="Lecture-to-Mastery" />
+    <meta property="og:description" content="Turn lectures into structured summaries, flashcards, quizzes, and interactive study tools powered by AI." />
+    <meta property="og:type" content="website" />
+    <!-- OG image placeholder — replace with a real branded card before public launch -->
+    <!-- <meta property="og:image" content="/og-image.png" /> -->
+    <title>Lecture-to-Mastery — Study smarter</title>
+    <!--
+      ── No-FOUC Theme Guard ──────────────────────
+      Inline, blocking script that runs BEFORE first paint.
+      Reads the persisted mode from localStorage, resolves
+      the effective theme (system=auto, light=light, dark=dark),
+      and applies both data-theme and class to <html> so there
+      is ZERO flash of wrong theme on load or refresh.
+      ════════════════════════════════════════════════ -->
+    <script>
+      (function() {
+        var mode = (function() {
+          try { return localStorage.getItem('theme-mode'); } catch(e) { return null; }
+        })();
+        // Default to light. Only switch to dark if user explicitly chose dark.
+        var resolved = 'light';
+        if (mode === 'dark') {
+          resolved = 'dark';
+        }
+        document.documentElement.setAttribute('data-theme', resolved);
+        if (resolved === 'dark') {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

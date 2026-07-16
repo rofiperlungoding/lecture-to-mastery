@@ -1,13 +1,25 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
+function isAllowedOrigin(origin: string | null): boolean {
+  if (!origin) return false;
+  try {
+    const url = new URL(origin);
+    if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') return true;
+    if (url.hostname.endsWith('.lecture-to-mastery.pages.dev') || url.hostname === 'lecture-to-mastery.pages.dev') return true;
+    return false;
+  } catch { return false; }
+}
+
 const ALLOWED_ORIGINS = [
   'http://localhost:5173',
+  'http://localhost:5174',
   'http://localhost:4173',
-  'https://30031c7a.lecture-to-mastery.pages.dev',
+  'https://master.lecture-to-mastery.pages.dev',
+  'https://preview-phase1-2.lecture-to-mastery.pages.dev',
 ]
 
 function corsHeaders(origin: string | null) {
-  const allowOrigin = origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]
+  const allowOrigin = isAllowedOrigin(origin) ? origin : 'http://localhost:5173'
   return {
     'Access-Control-Allow-Origin': allowOrigin,
     'Access-Control-Allow-Methods': 'POST, OPTIONS',

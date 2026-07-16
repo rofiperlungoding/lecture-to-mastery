@@ -2,6 +2,7 @@
 @import "@fontsource/inter/500.css";
 @import "@fontsource/inter/600.css";
 @import "@fontsource/inter/700.css";
+@import "./tokens.css";
 
 @tailwind base;
 @tailwind components;
@@ -16,122 +17,347 @@
     }
 
     body {
-        background-color: #f5f5f6;
-        color: #0a0a0a;
+        background-color: var(--color-bg);
+        color: var(--color-text-primary);
         font-feature-settings: "cv02", "cv03", "cv04", "cv11";
         transition:
-            background-color 150ms ease,
-            color 150ms ease;
-    }
-
-    html.dark body {
-        background-color: #0b0b0c;
-        color: #fafafa;
+            background-color var(--dur-base) var(--ease-standard),
+            color var(--dur-base) var(--ease-standard);
     }
 
     ::selection {
-        background-color: #e0e7ff;
-        color: #2438a6;
-    }
-
-    html.dark ::selection {
-        background-color: rgba(55, 93, 251, 0.2);
-        color: #fafafa;
+        background-color: var(--color-accent-subtle);
+        color: var(--color-accent-pressed);
     }
 
     *:focus-visible {
-        outline: 2px solid #375dfb;
+        outline: 2px solid var(--color-accent);
         outline-offset: 2px;
     }
 }
 
-/* Core dark mode overrides for tailwind color variables */
-html.dark {
+/* ── Theme cross-fade ──────────────────────
+     When data-theme changes, smoothly transition
+     the key properties that depend on CSS vars.
+     Uses a class-based approach to avoid
+     animating on every page load.
+     ══════════════════════════════════════ */
+html.theme-transitioning,
+html.theme-transitioning body,
+html.theme-transitioning [class*="bg-"],
+html.theme-transitioning [class*="text-"],
+html.theme-transitioning [class*="border-"] {
+    transition:
+        background-color var(--dur-base) var(--ease-standard),
+        color var(--dur-base) var(--ease-standard),
+        border-color var(--dur-base) var(--ease-standard),
+        box-shadow var(--dur-base) var(--ease-standard) !important;
+}
+
+/* ── Dark mode base ──────────────────────── */
+[data-theme="dark"] {
     color-scheme: dark;
 }
 
-/* Backgrounds */
-html.dark .bg-canvas {
-    background-color: #0b0b0c !important;
+/* ── Utility — hide scrollbars while keeping scroll functionality ── */
+.scrollbar-none::-webkit-scrollbar {
+    display: none;
 }
-html.dark .bg-white {
-    background-color: #161618 !important;
-}
-html.dark .bg-surface {
-    background-color: #161618 !important;
-}
-html.dark .bg-surface-subtle {
-    background-color: #1c1c1f !important;
-}
-html.dark .bg-surface-muted {
-    background-color: #1c1c1f !important;
-}
-html.dark .bg-bg-base {
-    background-color: #161618 !important;
-}
-html.dark .bg-bg-subtle {
-    background-color: #1c1c1f !important;
-}
-html.dark .bg-bg-muted {
-    background-color: #1c1c1f !important;
+.scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
 }
 
-/* Borders */
-html.dark .border,
-html.dark .border-border {
-    border-color: #27272a !important;
-}
-html.dark .border-border-strong,
-html.dark .border-strong {
-    border-color: #3f3f46 !important;
-}
-html.dark .divide-border > :not([hidden]) ~ :not([hidden]) {
-    border-color: #27272a !important;
+/* ── Reading rules ──────────────────────── */
+@layer utilities {
+  /* Constrain reading columns to ~68ch (Apple HIG: ~66-74 chars per line) */
+  .max-w-reading {
+    max-width: 68ch;
+  }
+
+  /* OS-level text balancing for headings */
+  .text-balance {
+    text-wrap: balance;
+  }
+  .text-pretty {
+    text-wrap: pretty;
+  }
+
+  /* Tabular-nums for all statistical data (streak, due counts, %, scores) */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Prose-like max-width for long-form content */
+  .max-w-prose {
+    max-width: 65ch;
+  }
 }
 
-/* Text Colors */
-html.dark .text-text {
-    color: #fafafa !important;
-}
-html.dark .text-text-secondary {
-    color: #a1a1aa !important;
-}
-html.dark .text-text-muted {
-    color: #71717a !important;
-}
-html.dark .text-secondary {
-    color: #a1a1aa !important;
-}
-html.dark .text-muted {
-    color: #71717a !important;
-}
-html.dark h1,
-html.dark h2,
-html.dark h3,
-html.dark h4,
-html.dark h5,
-html.dark h6 {
-    color: #fafafa !important;
+/* ── Layout — Container & Shell Utilities ── */
+@layer utilities {
+  /* Content container max-widths */
+  .max-w-content {
+    max-width: var(--width-content);
+  }
+  .max-w-reading-panel {
+    max-width: var(--width-reading);
+  }
+  .max-w-narrow {
+    max-width: var(--width-narrow);
+  }
+
+  /* Responsive page padding (mobile / tablet / desktop) */
+  .page-padding {
+    padding-left: var(--pad-page-mobile);
+    padding-right: var(--pad-page-mobile);
+  }
+  @media (min-width: 768px) {
+    .page-padding {
+      padding-left: var(--pad-page-tablet);
+      padding-right: var(--pad-page-tablet);
+    }
+  }
+  @media (min-width: 1024px) {
+    .page-padding {
+      padding-left: var(--pad-page-desktop);
+      padding-right: var(--pad-page-desktop);
+    }
+  }
+
+  /* Control height utilities */
+  .h-control-sm { height: var(--control-sm); }
+  .h-control-md { height: var(--control-md); }
+  .h-control-lg { height: var(--control-lg); }
+  .h-control-xl { height: var(--control-xl); }
+
+  /* Min touch target (44px) */
+  .min-h-touch { min-height: var(--control-lg); }
+
+  /* Vertical rhythm spacing (section spacing) */
+  .space-y-rhythm-1 > * + * { margin-top: var(--rhythm-1); }
+  .space-y-rhythm-2 > * + * { margin-top: var(--rhythm-2); }
+  .space-y-rhythm-3 > * + * { margin-top: var(--rhythm-3); }
+  .space-y-rhythm-4 > * + * { margin-top: var(--rhythm-4); }
+  .space-y-rhythm-5 > * + * { margin-top: var(--rhythm-5); }
+  .space-y-rhythm-6 > * + * { margin-top: var(--rhythm-6); }
+
+  /* Consistent card padding */
+  .card-pad { padding: var(--card-pad); }
+  .card-pad-sm { padding: var(--card-pad-sm); }
+  .card-pad-lg { padding: var(--card-pad-lg); }
+
+  /* Scrollbar-aware scroll container: prevents content from
+     shifting when scrollbar appears/disappears */
+  .scroll-container {
+    scrollbar-gutter: stable;
+  }
 }
 
-/* Specific component adaptations */
-html.dark input::placeholder,
-html.dark textarea::placeholder {
-    color: #71717a !important;
+/* ───────────────────────────────────────────────
+   MATERIAL SYSTEM — Chrome & Elevation Classes
+   ═══════════════════════════════════════════════
+   Apple-style translucent materials with graceful
+   fallback when backdrop-filter is unsupported.
+   ─────────────────────────────────────────────── */
+
+/* ── Chrome — translucent sticky UI (headers, sidebars) ── */
+.chrome {
+  /* Fallback: solid surface */
+  background-color: var(--color-surface);
+  border-bottom: var(--chrome-border);
 }
 
-/* Scrollbars in dark mode */
-html.dark ::-webkit-scrollbar {
+/* Graceful enhancement: translucent with blur */
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .chrome {
+    background-color: var(--chrome-bg);
+    backdrop-filter: blur(var(--chrome-blur));
+    -webkit-backdrop-filter: blur(var(--chrome-blur));
+  }
+}
+
+/* ── Chrome Sidebar — more opaque for readability ── */
+.chrome-sidebar {
+  border-right: var(--chrome-border);
+  background-color: var(--color-surface);
+}
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .chrome-sidebar {
+    background-color: var(--chrome-sidebar-bg);
+    backdrop-filter: blur(var(--chrome-blur));
+    -webkit-backdrop-filter: blur(var(--chrome-blur));
+  }
+}
+
+/* ── Chrome Elevated — for dialog-level surfaces ── */
+.chrome-elevated {
+  background-color: var(--color-surface-elevated);
+  border: var(--chrome-border);
+}
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .chrome-elevated {
+    background-color: var(--chrome-elevated-bg);
+    backdrop-filter: blur(var(--chrome-blur));
+    -webkit-backdrop-filter: blur(var(--chrome-blur));
+  }
+}
+
+/* ── Elevation role classes ── */
+.elevated-1 { box-shadow: var(--shadow-1); } /* card rest */
+.elevated-2 { box-shadow: var(--shadow-2); } /* card hover, sticky header */
+.elevated-3 { box-shadow: var(--shadow-3); } /* popover, dropdown */
+.elevated-4 { box-shadow: var(--shadow-4); } /* dialog, modal, toast */
+
+/* ── Hairline separators (1px, retina ~0.5px) ── */
+.hairline-bottom { border-bottom: var(--chrome-border); }
+.hairline-right  { border-right: var(--chrome-border); }
+.hairline-top    { border-top: var(--chrome-border); }
+.hairline-left   { border-left: var(--chrome-border); }
+
+/* ── Backdrop overlay (for modals/dialogs) ── */
+.backdrop-overlay {
+  background-color: var(--elevated-overlay);
+}
+@supports ((backdrop-filter: blur(4px)) or (-webkit-backdrop-filter: blur(4px))) {
+  .backdrop-overlay {
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+}
+
+/* ── Safe-area utilities (iOS notch / home indicator) ── */
+.pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+.pl-safe { padding-left: env(safe-area-inset-left, 0px); }
+.pr-safe { padding-right: env(safe-area-inset-right, 0px); }
+.px-safe { padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
+
+/* ── Dark scrollbar ──────────────────────── */
+[data-theme="dark"] ::-webkit-scrollbar {
     width: 10px;
     height: 10px;
 }
-html.dark ::-webkit-scrollbar-track {
-    background: #0b0b0c;
+[data-theme="dark"] ::-webkit-scrollbar-track {
+    background: var(--color-bg);
 }
-html.dark ::-webkit-scrollbar-thumb {
-    background: #27272a;
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+    background: var(--color-border);
     border-radius: 5px;
 }
-html.dark ::-webkit-scrollbar-thumb:hover {
-    background: #3f3f46;
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-border-strong);
+}
+
+/* ───────────────────────────────────────────────
+   MOTION SYSTEM — Animation Primitives
+   ═══════════════════════════════════════════════
+   Timing scale: micro (hover/press) = fast 120ms
+                  entrances          = base 220ms
+                  large surfaces     = slow 360ms + spring
+   GPU-only: animate transform + opacity ONLY.
+   ─────────────────────────────────────────────── */
+
+/* ── Fade in + slight slide ─────────────── */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation-name: fade-in;
+  animation-timing-function: var(--ease-standard);
+}
+
+/* ── Scale in + fade ────────────────────── */
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.animate-scale-in {
+  animation-name: scale-in;
+  animation-timing-function: var(--ease-spring);
+}
+
+/* ── Slide up + fade ────────────────────── */
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-slide-up {
+  animation-name: slide-up;
+  animation-timing-function: var(--ease-spring);
+}
+
+/* ── Page enter (route transitions) ─────── */
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-page-enter {
+  animation-name: page-enter;
+  animation-duration: var(--dur-base);
+  animation-timing-function: var(--ease-standard);
+  animation-fill-mode: both;
+}
+
+/* ── Tab panel enter (slightly faster, no slide) ── */
+@keyframes tab-enter {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.animate-tab-enter {
+  animation-name: tab-enter;
+  animation-duration: var(--dur-fast);
+  animation-timing-function: var(--ease-standard);
+  animation-fill-mode: both;
+}
+
+/* ── Respect reduced motion ───────────────── */
+/* ── Skeleton shimmer ────────────────────
+     Directional gradient sweep for loading
+     placeholders. On reduced motion, falls
+     back to a static tinted block.           */
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-muted) 25%,
+    var(--color-surface-subtle) 50%,
+    var(--color-bg-muted) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+/* ── Respect reduced motion ───────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .skeleton-shimmer {
+    animation: none;
+    background: var(--color-bg-muted);
+  }
+
+  .animate-fade-in,
+  .animate-scale-in,
+  .animate-slide-up,
+  .animate-page-enter,
+  .animate-tab-enter {
+    animation-name: none;
+    opacity: 1;
+    transform: none;
+  }
 }

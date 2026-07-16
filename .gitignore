@@ -12,6 +12,16 @@ dist
 dist-ssr
 *.local
 .env
+.env.*
+!.env.example
+
+# Supabase local dev
+supabase/.temp
+supabase/.branches
+
+# Keys and secrets
+*.key
+*.pem
 
 # Editor directories and files
 .vscode/*
@@ -23,3 +33,19 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Test artifacts
+test-results
+test-results.zip
+playwright-report
+
+# Build artifacts
+dev-dist
+
+# Helper scripts (not part of the app)
+*.cjs
+
+# Windows reserved device names
+nul
+NUL
+Nul

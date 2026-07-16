@@ -1,14 +1,15 @@
 import { supabase } from './supabase'
 import { showToast } from '../components/Toast'
-import { ACHIEVEMENT_DEFS, type UserStats, type Achievement } from '../types/db'
+import { ACHIEVEMENT_DEFS, getAchievementDef, type UserStats, type AchievementId } from '../types/db'
 
 // ============================================================================
-// XP constants
+// XP constants (modest, anti-inflation)
 // ============================================================================
 const XP_FLASHCARD_REVIEW = 10
-const XP_QUIZ_COMPLETED = 20
+const XP_QUIZ_COMPLETED = 25
 const XP_CHAT_QUESTION = 5
 const XP_DOCUMENT_STUDIED = 50
+const DAILY_XP_CAP = 150  // Anti-inflation: max XP per day
 
 // ============================================================================
 // Level formula: level = floor(sqrt(xp / 100)) + 1
@@ -37,7 +38,7 @@ export function xpProgressInLevel(xp: number): number {
 }
 
 // ============================================================================
-// Database helpers
+// Database helpers (new user_achievements table + user_stats)
 // ============================================================================
 
 export async function fetchUserStats(): Promise<UserStats | null> {
@@ -48,16 +49,51 @@ export async function fetchUserStats(): Promise<UserStats | null> {
   return data
 }
 
-export async function fetchAchievements(): Promise<Achievement[]> {
+/**
+ * Fetch achievements from the server-verified user_achievements table.
+ * Returns a set of achievement IDs the user has earned.
+ */
+export async function fetchEarnedAchievements(): Promise<Set<string>> {
   const { data } = await supabase
-    .from('achievements')
-    .select('*')
-    .order('unlocked_at', { ascending: false })
-  return data ?? []
+    .from('user_achievements')
+    .select('achievement_id')
+  return new Set((data ?? []).map((r: any) => r.achievement_id))
+}
+
+/**
+ * Trigger the server-side achievement evaluator and return newly earned IDs.
+ * Called after meaningful study actions.
+ */
+export async function checkAchievements(): Promise<string[]> {
+  try {
+    const { data: userData } = await supabase.auth.getUser()
+    const userId = userData.user?.id
+    if (!userId) return []
+
+    const { data, error } = await supabase.rpc('evaluate_achievements', { target_user_id: userId })
+    if (error) {
+      // Function may not exist yet (migration not run) — fall back silently
+      return []
+    }
+    // Return only newly awarded achievements
+    const rows = (data ?? []) as Array<{ user_id: string; achievement_id: string; newly_awarded: boolean }>
+    const newlyEarned = rows.filter((r) => r.newly_awarded).map((r) => r.achievement_id)
+
+    // Show toast for each newly earned achievement
+    for (const id of newlyEarned) {
+      const def = getAchievementDef(id)
+      const label = def?.label || id
+      showToast('success', `🏅 Achievement unlocked: ${label}!`)
+    }
+
+    return newlyEarned
+  } catch {
+    return []
+  }
 }
 
 // ============================================================================
-// Core: Award XP and update streak
+// Core: Award XP with daily cap (anti-inflation)
 // ============================================================================
 
 export async function awardXp(amount: number): Promise<UserStats | null> {
@@ -66,10 +102,21 @@ export async function awardXp(amount: number): Promise<UserStats | null> {
   if (!userId) return null
 
   const stats = await fetchUserStats()
-
   const today = new Date().toISOString().split('T')[0]
   const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
 
+  // ── Daily XP cap check ──────────────────────────────────────────────
+  // Query today's XP from the ledger (server-verified data)
+  const { data: todayXpData } = await supabase
+    .from('xp_ledger')
+    .select('amount')
+    .eq('user_id', userId)
+    .gte('earned_at', today)
+  const todayXp = (todayXpData ?? []).reduce((sum: number, r: any) => sum + r.amount, 0)
+  const cappedAmount = Math.min(amount, Math.max(0, DAILY_XP_CAP - todayXp))
+  const actualAmount = cappedAmount > 0 ? cappedAmount : 0
+
+  // ── Streak calculation ───────────────────────────────────────────────
   let newStreak = 0
   let newLongest = 0
 
@@ -88,9 +135,30 @@ export async function awardXp(amount: number): Promise<UserStats | null> {
     newLongest = Math.max(stats.longest_streak, newStreak)
   }
 
-  const newXp = (stats?.xp ?? 0) + amount
-  const newLevel = calcLevel(newXp)
+  // ── Award XP (only if within cap) ────────────────────────────────────
+  let newXp = stats?.xp ?? 0
+  let newLevel = stats?.level ?? 1
 
+  if (actualAmount > 0) {
+    newXp += actualAmount
+    newLevel = calcLevel(newXp)
+
+    // Record in XP ledger (fire-and-forget, never throws)
+    void supabase.from('xp_ledger').insert({
+      user_id: userId,
+      amount: actualAmount,
+      reason: 'flashcard_review',
+    })
+
+    // Update profile XP (fire-and-forget, never throws)
+    void supabase.from('profiles').update({
+      total_xp: newXp,
+      daily_xp: todayXp + actualAmount,
+      last_xp_date: today,
+    }).eq('id', userId)
+  }
+
+  // ── Update user_stats (streak always updates even if XP capped) ─────
   const { data } = await supabase
     .from('user_stats')
     .upsert({
@@ -106,43 +174,15 @@ export async function awardXp(amount: number): Promise<UserStats | null> {
 
   // Level up toast
   if (stats && newLevel > stats.level) {
-    showToast('success', '🎉 Level up! You are now level ' + newLevel + '!')
+    showToast('success', `🎉 Level up! You are now level ${newLevel}!`)
   }
 
-  // Check streak achievements
-  if (newStreak >= 3) await unlockAchievement('streak_3')
-  if (newStreak >= 7) await unlockAchievement('streak_7')
+  // Daily cap warning
+  if (actualAmount < amount && amount > 0) {
+    showToast('warning', `Daily XP limit reached (${DAILY_XP_CAP}/${DAILY_XP_CAP}). Come back tomorrow!`)
+  }
 
   return data
-}
-
-// ============================================================================
-// Achievements: check and unlock (idempotent via unique constraint)
-// ============================================================================
-
-async function unlockAchievement(key: string): Promise<boolean> {
-  const { data: existing } = await supabase
-    .from('achievements')
-    .select('id')
-    .eq('key', key)
-    .single()
-
-  if (existing) return false
-
-  const { error } = await supabase
-    .from('achievements')
-    .insert({ key })
-
-  if (error) {
-    if (error.message?.includes('duplicate') || error.code === '23505') return false
-    console.error('[Gamification] Failed to unlock achievement:', error.message)
-    return false
-  }
-
-  const def = ACHIEVEMENT_DEFS[key]
-  const label = def?.label || key
-  showToast('success', '🏅 Achievement unlocked: ' + label + '!')
-  return true
 }
 
 // ============================================================================
@@ -151,38 +191,17 @@ async function unlockAchievement(key: string): Promise<boolean> {
 
 export async function onFlashcardReviewed(): Promise<void> {
   await awardXp(XP_FLASHCARD_REVIEW)
-
-  // Check cards_50 achievement
-  const user = await supabase.auth.getUser()
-  const userId = user.data.user?.id
-  if (userId) {
-    const { count } = await supabase
-      .from('review_log')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId)
-    if (count && count >= 50) {
-      await unlockAchievement('cards_50')
-    }
-  }
-
-  // Check completionist: all cards in session reviewed
-  // (totalInSession is passed from the flashcard panel when all cards done)
-  // Handled separately via onSessionCompleted
+  // Check achievements after meaningful action
+  await checkAchievements()
 }
 
-export async function onSessionCompleted(totalCards: number, reviewedCount: number): Promise<void> {
-  if (reviewedCount >= totalCards && totalCards > 0) {
-    await unlockAchievement('completionist')
-  }
+export async function onSessionCompleted(_totalCards: number, _reviewedCount: number): Promise<void> {
+  await checkAchievements()
 }
 
-export async function onQuizCompleted(score: number, total: number): Promise<void> {
+export async function onQuizCompleted(_score: number, _total: number): Promise<void> {
   await awardXp(XP_QUIZ_COMPLETED)
-
-  if (score === total) {
-    await unlockAchievement('quiz_ace_100')
-  }
-  await unlockAchievement('first_quiz')
+  await checkAchievements()
 }
 
 export async function onChatQuestion(): Promise<void> {
@@ -191,12 +210,56 @@ export async function onChatQuestion(): Promise<void> {
 
 export async function onDocumentStudied(): Promise<void> {
   await awardXp(XP_DOCUMENT_STUDIED)
-  await unlockAchievement('first_document')
+  await checkAchievements()
 }
 
 export async function checkNightOwl(): Promise<void> {
-  const hour = new Date().getHours()
-  if (hour >= 22 || hour < 5) {
-    await unlockAchievement('night_owl')
+  await checkAchievements()
+}
+
+/**
+ * Get the next achievement the user can unlock (one they don't have yet).
+ */
+export function getNextAchievement(
+  earned: Set<string>,
+  stats?: UserStats | null,
+): { id: AchievementId; def: (typeof ACHIEVEMENT_DEFS)[number]; progress: number } | null {
+  const unearned = ACHIEVEMENT_DEFS.filter((a) => !earned.has(a.id))
+  if (unearned.length === 0) return null
+
+  // Pick the earliest available achievement (bronze first, then by order)
+  const tierOrder = ['bronze', 'silver', 'gold']
+  unearned.sort((a, b) => tierOrder.indexOf(a.tier) - tierOrder.indexOf(b.tier) || ACHIEVEMENT_DEFS.indexOf(a) - ACHIEVEMENT_DEFS.indexOf(b))
+
+  const next = unearned[0]
+  let progress = 0
+
+  // Compute approximate progress based on stats
+  if (stats) {
+    switch (next.id) {
+      case 'first_document':
+        break // binary
+      case 'first_quiz':
+        break // binary
+      case 'streak_3':
+        progress = Math.min(1, (stats.current_streak || 0) / 3)
+        break
+      case 'streak_7':
+        progress = Math.min(1, (stats.current_streak || 0) / 7)
+        break
+      case 'streak_30':
+        progress = Math.min(1, (stats.current_streak || 0) / 30)
+        break
+      case 'quiz_ace_100':
+        break // binary
+      case 'cards_50':
+        break // computed from review_log
+      case 'cards_500':
+        break // computed from review_log
+      default:
+        progress = 0
+    }
   }
+
+  return { id: next.id as AchievementId, def: next, progress }
 }

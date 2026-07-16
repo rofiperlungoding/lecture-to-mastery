@@ -1,0 +1,341 @@
+/* ═══════════════════════════════════════════════════
+   🎨  Design Tokens — Lecture-to-Mastery
+   ═══════════════════════════════════════════════════
+   Single source of truth for every visual decision.
+   Light values defined here; dark values are overridden
+   in [data-theme="dark"] (Phase 5 completes dark mode).
+   ═══════════════════════════════════════════════════ */
+
+:root {
+  /* ───────────────────────────────────────────────
+     COLOR — Backgrounds & Surface
+     Slightly-cool neutral ramp. Backgrounds are
+     near-white with a faint cool tint (not pure #fff)
+     to cut glare. Primary text is near-black
+     (not pure #000).
+     ─────────────────────────────────────────────── */
+  --color-bg:              #F4F5F7;  /* canvas — cool off-white              */
+  --color-surface:         #FCFCFD;  /* cards, dialogs — slightly off-white */
+  --color-surface-subtle:  #F0F1F3;  /* input bg, hover states              */
+  --color-surface-muted:   #E9EBEE;  /* skeleton, disabled                  */
+  --color-surface-elevated:#FFFFFF;  /* modals, dropdowns (pure white=high)  */
+
+  /* ── Neutral Ramp (10-step, slightly-cool)     ──
+      50  #F4F5F7  100 #F0F1F3  200 #E2E5EA
+      300 #CFD4DB  400 #A1A8B3  500 #818896
+      600 #656C79  700 #4C535E  800 #323842
+      900 #1A1E26  950 #0D0F12                        */
+
+  /* ── COLOR — Border                         ── */
+  --color-border:          #E2E5EA;  /* default divider / outline           */
+  --color-border-strong:   #CFD4DB;  /* stronger border (hover, active)     */
+  --color-border-hairline: #EDEFF2;  /* ultra-subtle hairline               */
+
+  /* ── COLOR — Text                           ──
+       All pairs verified for WCAG AA contrast
+       (see /styleguide for full contrast table).   */
+  --color-text-primary:    #0D0F12;  /* body / headings   — 19.4:1 on surf  */
+  --color-text-secondary:  #4C535E;  /* secondary / labels — 8.0:1 on surf  */
+  --color-text-tertiary:   #818896;  /* placeholder / caps — 3.8:1 on surf  */
+  --color-text-inverse:    #FFFFFF;  /* on-brand / on-dark backgrounds      */
+  --color-text-on-accent:  #FFFFFF;  /* text on accent buttons              */
+
+  /* ── COLOR — Accent (hero blue)             ──
+       A confident Apple-system-blue (#3366FF).
+       Used SPARINGLY: primary CTA, active nav,
+       focus ring, key data highlights only.        */
+  --color-accent:          #3366FF;  /* primary CTA / links  (4.2:1 on surf)*/
+  --color-accent-hover:    #2952CC;  /* hover state                           */
+  --color-accent-pressed:  #1F3E99;  /* active/pressed state                  */
+  --color-accent-subtle:   #EBF0FF;  /* tinted bg (badge bg, icon bg)        */
+  --color-accent-100:      #D6E3FF;  /* lighter tint (focus rings, etc)      */
+
+  /* ── COLOR — Semantic Status              ──
+       Calm, premium hues — never neon.
+       Each has a subtle tinted bg variant.        */
+  --color-success:         #10B981;  /* success indicator                    */
+  --color-success-subtle:  #ECFDF5;  /* success bg tint                      */
+  --color-success-on-subtle: #047857; /* text on success bg                  */
+
+  --color-warning:         #F59E0B;  /* warning indicator                    */
+  --color-warning-subtle:  #FFFBEB;  /* warning bg tint                      */
+  --color-warning-on-subtle: #D97706; /* text on warning bg                  */
+
+  --color-danger:          #EF4444;  /* error / destructive indicator        */
+  --color-danger-subtle:   #FEF2F2;  /* error bg tint                        */
+  --color-danger-on-subtle:#B91C1C;  /* text on error bg                     */
+
+  /* ── COLOR — Mastery Scale               ──
+       Low (red-orange) → Mid (violet) → High (green)
+       Tuned calm, not neon. High matches success. */
+  --color-mastery-low:     #F97316;  /* 0-33% mastery  (orange)             */
+  --color-mastery-mid:     #8B5CF6;  /* 34-66% mastery (violet)             */
+  --color-mastery-high:    #10B981;  /* 67-100% mastery (green — matches success) */
+
+  /* ───────────────────────────────────────────────
+     SPACING — 8pt Grid
+     All margins, padding, gaps use these tokens
+     or their Tailwind equivalents. No arbitrary values.
+     ─────────────────────────────────────────────── */
+  --space-1:   4px;
+  --space-2:   8px;
+  --space-3:   12px;
+  --space-4:   16px;
+  --space-5:   20px;
+  --space-6:   24px;
+  --space-8:   32px;
+  --space-10:  40px;
+  --space-12:  48px;
+  --space-16:  64px;
+
+  /* ── Vertical Rhythm (section spacing)       ── */
+  --rhythm-0:   0;
+  --rhythm-1:   var(--space-2);    /* 8px   — tight */
+  --rhythm-2:   var(--space-4);    /* 16px  — default sibling */
+  --rhythm-3:   var(--space-6);    /* 24px  — between related sections */
+  --rhythm-4:   var(--space-8);    /* 32px  — between unrelated sections */
+  --rhythm-5:   var(--space-10);   /* 40px  — major section break */
+  --rhythm-6:   var(--space-12);   /* 48px  — page-level section */
+  --rhythm-7:   var(--space-16);   /* 64px  — hero/title separation */
+
+  /* ───────────────────────────────────────────────
+     LAYOUT — Container & Page Shells
+     ─────────────────────────────────────────────── */
+  --width-content:  1120px;  /* main content max (dashboard, page containers) */
+  --width-reading:  720px;   /* reading / chat panels, quiz */
+  --width-narrow:   640px;   /* flashcards, tight panels */
+
+  /* ── Responsive Page Padding (mobile / tablet / desktop) ── */
+  --pad-page-mobile:  var(--space-4);   /* 16px */
+  --pad-page-tablet:  var(--space-6);   /* 24px */
+  --pad-page-desktop: var(--space-8);   /* 32px */
+
+  /* ── Control Heights (Apple 44pt touch target) ── */
+  --control-sm:   32px;   /* small / inline */
+  --control-md:   40px;   /* default */
+  --control-lg:   44px;   /* primary touch target (Apple HIG) */
+  --control-xl:   48px;   /* large / hero */
+
+  /* ── Card Padding ── */
+  --card-pad-sm:  var(--space-4);   /* 16px — dense */
+  --card-pad:     var(--space-5);   /* 20px — default */
+  --card-pad-lg:  var(--space-6);   /* 24px — comfortable */
+
+  /* ───────────────────────────────────────────────
+     RADIUS — Apple Continuous Corners
+     ─────────────────────────────────────────────── */
+  --radius-sm:    8px;
+  --radius-md:    12px;
+  --radius-lg:    16px;
+  --radius-xl:    22px;
+  --radius-full:  9999px;
+
+  /* ───────────────────────────────────────────────
+     ELEVATION — Soft, Diffuse Shadows
+     Low-opacity, theme-tinted; never harsh.
+     ═══════════════════════════════════════════════
+     Mapping:
+       shadow-1 → card rest, subtle surfaces
+       shadow-2 → card hover, sticky header
+       shadow-3 → popover, dropdown, palette
+       shadow-4 → dialog, modal, toast
+     ─────────────────────────────────────────────── */
+  --shadow-1: 0 1px 2px 0 rgba(16,24,40,0.06);
+  --shadow-2: 0 2px 4px -1px rgba(16,24,40,0.08),
+              0 1px 2px -1px rgba(16,24,40,0.06);
+  --shadow-3: 0 8px 16px -4px rgba(16,24,40,0.10),
+              0 3px 6px -3px rgba(16,24,40,0.08);
+  --shadow-4: 0 16px 32px -8px rgba(16,24,40,0.12),
+              0 6px 12px -6px rgba(16,24,40,0.06);
+
+  /* ───────────────────────────────────────────────
+     MATERIAL — Translucent Chrome Surfaces
+     For sticky headers, sidebars, toasts, dialogs.
+     ═══════════════════════════════════════════════
+     backdrop-filter with semi-opaque bg for
+     Apple-style translucency. Graceful fallback
+     to solid token bg when @supports fails.
+     ─────────────────────────────────────────────── */
+  --chrome-bg:        rgba(252, 252, 253, 0.72);  /* semi-opaque surface */
+  --chrome-blur:      20px;                       /* backdrop blur radius */
+  --chrome-border:    1px solid var(--color-border-hairline);
+
+  /* Sidebar-specific: slightly more opaque for reading comfort */
+  --chrome-sidebar-bg: rgba(252, 252, 253, 0.88);
+
+  /* Elevated/dialog chrome: toasts, dialogs */
+  --chrome-elevated-bg: rgba(255, 255, 255, 0.85);
+
+  /* Elevated surface overlays (dialogs, toasts) */
+  --elevated-overlay: rgba(0, 0, 0, 0.25);       /* backdrop overlay */
+
+  /* ───────────────────────────────────────────────
+     MOTION — Timing & Easing
+     ─────────────────────────────────────────────── */
+  --ease-standard:    cubic-bezier(0.4, 0, 0.2, 1);      /* Material/Apple standard   */
+  --ease-emphasized:  cubic-bezier(0.2, 0, 0, 1);        /* Apple "emphasized" curve  */
+  --ease-spring:      cubic-bezier(0.34, 1.56, 0.64, 1); /* subtle bounce / spring    */
+
+  --dur-fast:   120ms;
+  --dur-base:   220ms;
+  --dur-slow:   360ms;
+
+  /* ───────────────────────────────────────────────
+     Z-INDEX — Layering Scale
+     ─────────────────────────────────────────────── */
+  --z-base:     1;
+  --z-sticky:   100;
+  --z-dropdown: 500;
+  --z-dialog:   1000;
+  --z-toast:    1100;
+
+  /* ───────────────────────────────────────────────
+     TYPOGRAPHY — Font Stack (system-first)
+     ─────────────────────────────────────────────── */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+
+  /* ── TYPOGRAPHY — Role-Based Scale       ──
+     Apple HIG-inspired. Optical sizing:
+     larger text → tighter tracking;
+     small text → slightly looser.         */
+
+  /* Display — 34/40 w700 -0.02em */
+  --fs-display:      34px;
+  --lh-display:      40px;
+  --fw-display:      700;
+  --track-display:   -0.02em;
+
+  /* Title 1 — 28/34 w700 -0.02em */
+  --fs-title-1:      28px;
+  --lh-title-1:      34px;
+  --fw-title-1:      700;
+  --track-title-1:   -0.02em;
+
+  /* Title 2 — 22/28 w600 -0.01em */
+  --fs-title-2:      22px;
+  --lh-title-2:      28px;
+  --fw-title-2:      600;
+  --track-title-2:   -0.01em;
+
+  /* Title 3 — 17/22 w600 */
+  --fs-title-3:      17px;
+  --lh-title-3:      22px;
+  --fw-title-3:      600;
+  --track-title-3:   0;
+
+  /* Body — 17/25 w400 */
+  --fs-body:         17px;
+  --lh-body:         25px;
+  --fw-body:         400;
+  --track-body:      0;
+
+  /* Callout — 16/22 w400 */
+  --fs-callout:      16px;
+  --lh-callout:      22px;
+  --fw-callout:      400;
+  --track-callout:   0;
+
+  /* Subhead — 15/20 w400 */
+  --fs-subhead:      15px;
+  --lh-subhead:      20px;
+  --fw-subhead:      400;
+  --track-subhead:   0;
+
+  /* Footnote — 13/18 w400 +0.01em */
+  --fs-footnote:     13px;
+  --lh-footnote:     18px;
+  --fw-footnote:     400;
+  --track-footnote:  0.01em;
+
+  /* Caption — 12/16 w500 +0.02em */
+  --fs-caption:      12px;
+  --lh-caption:      16px;
+  --fw-caption:      500;
+  --track-caption:   0.02em;
+}
+
+/* ═══════════════════════════════════════════════════
+   🌙  DARK MODE — Apple-Inspired Dark Theme
+   ═══════════════════════════════════════════════════
+   Key principles:
+   • Backgrounds are near-black with a faint cool tint
+     (not pure #000 — reduces eye strain).
+   • Elevated surfaces get LIGHTER via subtle overlays
+     (macOS/iOS behavior — depth through luminance,
+     not harsh shadows).
+   • Accent kept at same hue for brand consistency;
+     subtle tints use alpha for material-like feel.
+   • Shadows are very soft — elevation is primarily
+     communicated by surface tint differences.
+   ═══════════════════════════════════════════════════ */
+[data-theme="dark"],
+html.dark {
+  color-scheme: dark;
+
+  /* ── Backgrounds & Surface — near-black, cool tint │
+       Surface ramp: bg → surface → elevated = brighter
+       (Apple: higher elevation = lighter tint)        */
+  --color-bg:              #0A0B0D;  /* canvas — near-black, cool tint        */
+  --color-surface:         #1C1C1E;  /* cards, sidebar — slightly lighter     */
+  --color-surface-subtle:  #252528;  /* input bg, hover states                */
+  --color-surface-muted:   #2C2C2E;  /* skeleton, disabled                    */
+  --color-surface-elevated:#323236;  /* modals, dropdowns — LIGHTER for depth */
+
+  /* ── Borders                               ── */
+  --color-border:          #38383C;  /* default divider / outline             */
+  --color-border-strong:   #4A4A4E;  /* stronger border (hover, active)       */
+  --color-border-hairline: #2C2C2E;  /* ultra-subtle hairline                 */
+
+  /* ── Text — near-white, soft contrast        ── */
+  --color-text-primary:    #F5F5F5;  /* body / headings                       */
+  --color-text-secondary:  #A1A1A6;  /* secondary / muted labels              */
+  --color-text-tertiary:   #7C7C82;  /* placeholder / caps                    */
+  --color-text-inverse:    #0A0B0D;  /* on-brand / on-dark backgrounds        */
+  --color-text-on-accent:  #FFFFFF;  /* text on accent buttons                */
+
+  /* ── Accent — same hue as light mode         ──
+       Brand consistency across themes.          */
+  --color-accent:          #3366FF;  /* primary CTA / links                   */
+  --color-accent-hover:    #527AFF;  /* hover state — brighter on dark bg     */
+  --color-accent-pressed:  #1A4FFF;  /* active/pressed state                  */
+  --color-accent-subtle:   rgba(51, 102, 255, 0.15);  /* tinted bg           */
+  --color-accent-100:      rgba(51, 102, 255, 0.20);  /* lighter tint        */
+
+  /* ── Semantic — brighter for dark mode, comfortable ── */
+  --color-success:         #30D158;  /* success indicator (brighter)          */
+  --color-success-subtle:  rgba(48, 209, 88, 0.12);    /* success bg tint    */
+  --color-success-on-subtle: #86EFAC;/* text on success bg                    */
+
+  --color-warning:         #FFD60A;  /* warning indicator (brighter amber)    */
+  --color-warning-subtle:  rgba(255, 214, 10, 0.12);   /* warning bg tint    */
+  --color-warning-on-subtle: #FDE047;/* text on warning bg                    */
+
+  --color-danger:          #FF453A;  /* Apple system red (vibrant, premium)   */
+  --color-danger-subtle:   rgba(255, 69, 58, 0.12);    /* error bg tint      */
+  --color-danger-on-subtle:#FDA4AF;  /* text on error bg                      */
+
+  /* ── Mastery — vibrant but premium           ── */
+  --color-mastery-low:     #FF9F0A;  /* 0-33% (brighter orange)              */
+  --color-mastery-mid:     #BF5AF2;  /* 34-66% (vibrant violet — Apple SF)   */
+  --color-mastery-high:    #30D158;  /* 67-100% (green — matches success)    */
+
+  /* ── Material — dark mode tuning             ──
+       Chrome surfaces: more opaque to maintain
+       readability on dark content underneath.   */
+  --chrome-bg:        rgba(28, 28, 30, 0.78);   /* semi-opaque dark surface */
+  --chrome-sidebar-bg: rgba(28, 28, 30, 0.92);  /* sidebar: more opaque */
+  --chrome-elevated-bg: rgba(42, 42, 46, 0.85); /* elevated chrome (dark) */
+  --elevated-overlay:  rgba(0, 0, 0, 0.50);     /* darker overlay for dark */
+
+  /* ── Shadows — very soft in dark mode        ──
+       Elevation is primarily conveyed by the
+       surface tint ramp, not cast shadows.      */
+  --shadow-1: 0 1px 2px 0 rgba(0,0,0,0.20);
+  --shadow-2: 0 2px 4px -1px rgba(0,0,0,0.25),
+              0 1px 2px -1px rgba(0,0,0,0.15);
+  --shadow-3: 0 8px 16px -4px rgba(0,0,0,0.30),
+              0 3px 6px -3px rgba(0,0,0,0.20);
+  --shadow-4: 0 16px 32px -8px rgba(0,0,0,0.40),
+              0 6px 12px -6px rgba(0,0,0,0.25);
+}

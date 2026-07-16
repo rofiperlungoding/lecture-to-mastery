@@ -13,14 +13,20 @@ import { ThemeToggle } from "../components/ThemeToggle";
 import { CommandPalette } from "../components/CommandPalette";
 import { ShortcutsCheatSheet } from "../components/ShortcutsCheatSheet";
 import { UploadDialog } from "../components/UploadDialog";
+import { Input } from "../components/Input";
+import { OfflineBanner } from "../components/OfflineBanner";
+import { InstallPrompt } from "../components/InstallPrompt";
+import { ErrorBoundary } from "../components/ErrorBoundary";
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 
 export const Route = createRootRoute({
   beforeLoad: ({ location }) => {
     const { user, initialized } = useAuthStore.getState();
-    if (initialized && !user && location.pathname !== "/login") {
-      throw redirect({ to: "/login" });
+    const publicPaths = ['/login', '/health']
+    const isPublicProfile = location.pathname.startsWith('/u/')
+    if (initialized && !user && !publicPaths.includes(location.pathname) && !isPublicProfile) {
+      throw redirect({ to: '/login' });
     }
   },
   component: function RootLayout() {
@@ -134,27 +140,32 @@ export const Route = createRootRoute({
 
     if (!initialized || isLoginPage) {
       return (
-        <div className="min-h-screen bg-canvas dark:bg-[#0B0B0C] text-text dark:text-[#FAFAFA]">
-          <Outlet />
+        <div className="min-h-screen bg-canvas text-text">
+          <OfflineBanner />
+          <ErrorBoundary context="App">
+            <div key={window.location.pathname} className="animate-page-enter">
+              <Outlet />
+            </div>
+          </ErrorBoundary>
           <ToastContainer />
         </div>
       );
     }
 
     return (
-      <div className="flex min-h-screen bg-canvas dark:bg-[#0B0B0C] text-text dark:text-[#FAFAFA]">
+      <div className="flex min-h-screen bg-canvas text-text" style={{ paddingTop: 'env(safe-area-inset-top)', paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)' }}>
         <Sidebar />
-        <main className="flex flex-1 flex-col overflow-auto bg-canvas dark:bg-[#0B0B0C]">
-          {/* Top Bar with theme toggle */}
-          <div className="flex h-16 items-center justify-between border-b border-border dark:border-[#27272A] bg-white dark:bg-[#161618] px-6 shrink-0 lg:px-8">
+        <main className="flex flex-1 flex-col overflow-auto bg-canvas">
+          {/* Top Bar with theme toggle — chrome material */}
+          <div className="flex h-16 items-center justify-between chrome elevated-2 page-padding shrink-0 z-sticky">
             <div className="flex items-center gap-2">
-              <span className="text-small text-text-secondary dark:text-[#A1A1AA] hidden sm:inline">
+              <span className="text-small text-text-secondary hidden sm:inline">
                 Press{" "}
-                <kbd className="rounded bg-bg-muted dark:bg-[#1C1C1F] px-1.5 py-0.5 text-caption ring-1 ring-black/5 dark:ring-white/10 font-mono">
+                <kbd className="rounded bg-bg-muted px-1.5 py-0.5 text-caption ring-1 ring-black/5 font-mono">
                   Ctrl+K
                 </kbd>{" "}
                 or{" "}
-                <kbd className="rounded bg-bg-muted dark:bg-[#1C1C1F] px-1.5 py-0.5 text-caption ring-1 ring-black/5 dark:ring-white/10 font-mono">
+                <kbd className="rounded bg-bg-muted px-1.5 py-0.5 text-caption ring-1 ring-black/5 font-mono">
                   ⌘K
                 </kbd>{" "}
                 to open Command Palette
@@ -165,12 +176,21 @@ export const Route = createRootRoute({
             </div>
           </div>
 
-          {/* Guest mode banner with upgrade option */}
-          {isAnonymous && <GuestUpgradeBanner />}
-          <div className="flex-1 overflow-auto bg-canvas dark:bg-[#0B0B0C]">
-            <Outlet />
-          </div>
+          {/* Offline banner */}
+          <OfflineBanner />
+
+          {/* Top-level error boundary catches uncaught renders */}
+          <ErrorBoundary context="App">
+            {/* Guest mode banner with upgrade option */}
+            {isAnonymous && <GuestUpgradeBanner />}
+            <div className="flex-1 overflow-auto bg-canvas">
+              <div key={window.location.pathname} className="animate-page-enter">
+                <Outlet />
+              </div>
+            </div>
+          </ErrorBoundary>
         </main>
+
         <ToastContainer />
 
         {/* Global Dialogs, Command Palette, and Cheat Sheet */}
@@ -186,6 +206,9 @@ export const Route = createRootRoute({
           open={isUploadOpen}
           onClose={() => setUploadOpen(false)}
         />
+
+        {/* PWA Install prompt */}
+        <InstallPrompt />
       </div>
     );
   },
@@ -243,7 +266,7 @@ function GuestUpgradeBanner() {
 
   if (upgraded) {
     return (
-      <div className="flex items-center justify-center border-b border-border dark:border-[#27272A] bg-green-50 dark:bg-green-950/20 px-4 py-2 text-small text-green-700 dark:text-green-400">
+      <div className="flex items-center justify-center border-b border-border bg-green-50 dark:bg-green-950/20 px-4 py-2 text-small text-green-700 dark:text-green-400">
         <span className="h-1.5 w-1.5 rounded-full bg-green-500 mr-2" />
         Account upgraded! Your work is now saved permanently.
       </div>
@@ -251,7 +274,7 @@ function GuestUpgradeBanner() {
   }
 
   return (
-    <div className="border-b border-border dark:border-[#27272A] bg-brand-50 dark:bg-brand-950/10">
+    <div className="border-b border-border bg-brand-50 dark:bg-brand-950/10">
       <div className="flex items-center justify-center gap-2 px-4 py-2 text-small text-brand-700 dark:text-brand-400">
         <span className="h-1.5 w-1.5 rounded-full bg-brand-500" />
         Guest mode &mdash;{" "}
@@ -268,7 +291,7 @@ function GuestUpgradeBanner() {
         <div className="mx-auto max-w-md px-4 pb-4">
           <form
             onSubmit={handleUpgrade}
-            className="rounded-lg border border-brand-200 dark:border-brand-900/40 bg-white dark:bg-[#161618] p-4 shadow-sm"
+            className="rounded-lg border border-brand-200 dark:border-brand-900/40 bg-surface-elevated p-4 elevated-2"
           >
             {upgradeError && (
               <div className="mb-3 rounded-md border border-rose-200 dark:border-rose-900/40 bg-rose-50 dark:bg-rose-950/20 px-3 py-2 text-small text-rose-700 dark:text-rose-400">
@@ -276,24 +299,22 @@ function GuestUpgradeBanner() {
               </div>
             )}
             <div className="space-y-3">
-              <input
+              <Input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
                 placeholder="Your email"
                 required
                 disabled={upgradeLoading}
-                className="w-full rounded-md border border-border dark:border-[#27272A] bg-white dark:bg-[#1C1C1F] px-3 py-2 text-body text-text dark:text-[#FAFAFA] placeholder-text-muted dark:placeholder-[#71717A] transition-colors duration-150 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:opacity-50"
               />
-              <input
+              <Input
                 type="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
                 placeholder="Password (min 6 characters)"
                 required
                 minLength={6}
                 disabled={upgradeLoading}
-                className="w-full rounded-md border border-border dark:border-[#27272A] bg-white dark:bg-[#1C1C1F] px-3 py-2 text-body text-text dark:text-[#FAFAFA] placeholder-text-muted dark:placeholder-[#71717A] transition-colors duration-150 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:opacity-50"
               />
               <button
                 type="submit"

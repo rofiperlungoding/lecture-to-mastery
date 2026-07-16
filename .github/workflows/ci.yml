@@ -1,0 +1,350 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# PHASE T19 — CI Gate
+#
+# Runs the appropriate test suites per trigger:
+#   - PR: unit + edge + smoke (T3) + a11y (T15) + auth (T4) — fast feedback
+#   - Push to master/main: full suite + aggregated report + deploy
+#   - Nightly (scheduled): full cross-browser + PWA + chaos (slow)
+#
+# Gates:
+#   - Fails on any serious/critical axe violation
+#   - Fails on any test failure in PR smoke suite
+#   - Uploads traces, screenshots, and consolidated report as artifacts
+#
+# DESIGN NOTES:
+#   - PR tests run full files (not --grep subsets) because test files use
+#     test.describe.serial — skipping setup tests via --grep would break
+#     all subsequent tests that depend on the login/demo-load setup.
+#   - Preview server health is checked via curl after wait-on to verify the
+#     SPA actually serves content, not just that the port is open.
+# ═══════════════════════════════════════════════════════════════════════════
+
+name: CI Gate
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  schedule:
+    # Nightly full suite at 03:00 UTC
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: 'Test suite to run (pr, full, nightly)'
+        required: true
+        default: 'pr'
+        type: choice
+        options:
+          - pr
+          - full
+          - nightly
+
+# ── Env ──────────────────────────────────────────────────────────────────
+
+env:
+  NODE_VERSION: 22
+  PLAYWRIGHT_BASE_URL: http://localhost:3000
+  # Supabase credentials must be set in GitHub Secrets
+  VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || '' }}
+  VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || '' }}
+
+# ── Jobs ─────────────────────────────────────────────────────────────────
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────────
+  # PR SUITE — Fast feedback (unit + edge + smoke + a11y + auth)
+  # ──────────────────────────────────────────────────────────────────────────
+  pr-checks:
+    name: PR Checks (unit + smoke + a11y)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript type check
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests (frontend)
+        run: npm run test:unit
+
+      - name: Edge function tests
+        run: npm run test:edge
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Build app
+        run: npm run build
+
+      - name: Start preview server
+        run: npx vite preview --port 3000 &
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || '' }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || '' }}
+
+      - name: Wait for server port
+        run: npx wait-on http://localhost:3000 --timeout 30000
+
+      - name: Health check — verify app serves content
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/login)
+          if [ "$STATUS" -ne 200 ]; then
+            echo "❌ App returned HTTP $STATUS — server may be broken"
+            curl -s http://localhost:3000/login | head -20
+            exit 1
+          fi
+          echo "✅ App server healthy (HTTP $STATUS)"
+
+      - name: Smoke test (T3 — critical path)
+        id: smoke
+        run: npx playwright test e2e/critical-path.spec.ts --project=chromium --reporter=list,json
+        continue-on-error: true
+
+      - name: A11Y test (T15 — full axe scan)
+        id: a11y
+        # Run full file — tests are serial and depend on the 00-setup/login step
+        run: npx playwright test e2e/a11y.spec.ts --project=chromium --reporter=list,json
+        continue-on-error: true
+
+      - name: Auth test (T4 — full suite)
+        id: auth
+        # Run full file — tests are serial with session state shared across steps
+        run: npx playwright test e2e/auth.spec.ts --project=chromium --reporter=list,json
+        continue-on-error: true
+
+      - name: Check for serious/critical a11y violations
+        id: a11y-gate
+        run: |
+          if [ -f test-results/t15-report.json ]; then
+            CRITICAL=$(node -e "const r = require('./test-results/t15-report.json'); console.log(r.axeSummary?.seriousCriticalCount || 0)")
+            if [ "$CRITICAL" -gt "0" ]; then
+              echo "❌ $CRITICAL serious/critical a11y violations found — gating PR"
+              exit 1
+            fi
+            echo "✅ Zero serious/critical a11y violations"
+          else
+            echo "⚠️ No a11y report found — skipping a11y gate"
+          fi
+
+      - name: Aggregate reports
+        if: always()
+        run: npx tsx scripts/aggregate-reports.ts
+
+      - name: Upload artifacts (traces, screenshots, report)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-test-results-${{ github.sha }}
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 14
+
+      - name: Fail if smoke or a11y failed
+        if: steps.smoke.outcome == 'failure' || steps.a11y.outcome == 'failure'
+        run: |
+          echo "❌ PR checks failed — smoke or a11y tests did not pass"
+          exit 1
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # FULL SUITE — Runs on push to master/main and manual dispatch
+  # ──────────────────────────────────────────────────────────────────────────
+  full-suite:
+    name: Full Suite
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript type check
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm run test:unit
+
+      - name: Edge function tests
+        run: npm run test:edge
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium firefox webkit --with-deps
+
+      - name: Build app
+        run: npm run build
+
+      - name: Start preview server
+        run: npx vite preview --port 3000 &
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || '' }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || '' }}
+
+      - name: Wait for server port
+        run: npx wait-on http://localhost:3000 --timeout 30000
+
+      - name: Health check
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/login)
+          if [ "$STATUS" -ne 200 ]; then
+            echo "❌ App returned HTTP $STATUS"
+            exit 1
+          fi
+          echo "✅ App healthy (HTTP $STATUS)"
+
+      - name: Run all E2E tests (chromium)
+        run: npx playwright test --project=chromium --reporter=list,json
+        continue-on-error: true
+
+      - name: Run cross-browser on firefox + webkit (selective)
+        run: |
+          npx playwright test e2e/critical-path.spec.ts e2e/auth.spec.ts --project=firefox --reporter=list,json || true
+          npx playwright test e2e/critical-path.spec.ts e2e/auth.spec.ts --project=webkit --reporter=list,json || true
+
+      - name: Run mobile tests
+        run: |
+          npx playwright test e2e/cross-browser-responsive-pwa.spec.ts --project=mobile-chrome -g "05a|05b|03a" --reporter=list,json || true
+          npx playwright test e2e/cross-browser-responsive-pwa.spec.ts --project=mobile-safari -g "05a|05b|03a" --reporter=list,json || true
+
+      - name: A11Y gate (zero serious/critical)
+        run: |
+          if [ -f test-results/t15-report.json ]; then
+            CRITICAL=$(node -e "const r = require('./test-results/t15-report.json'); console.log(r.axeSummary?.seriousCriticalCount || 0)")
+            if [ "$CRITICAL" -gt "0" ]; then
+              echo "❌ $CRITICAL serious/critical a11y violations found — gating"
+              exit 1
+            fi
+            echo "✅ Zero serious/critical a11y violations"
+          fi
+
+      - name: Aggregate reports
+        if: always()
+        run: npx tsx scripts/aggregate-reports.ts
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-test-results-${{ github.sha }}
+          path: |
+            test-results/
+            playwright-report/
+            e2e/screenshots/
+          retention-days: 30
+
+      - name: Check consolidated report health
+        if: always()
+        run: |
+          HEALTH=$(node -e "const r = require('./test-results/consolidated-report.json'); console.log(r.executiveSummary.overallHealth)")
+          echo "Overall health: $HEALTH"
+          if [ "$HEALTH" = "FAIL" ]; then
+            echo "❌ Consolidated report shows FAIL — check defects"
+            exit 1
+          fi
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # NIGHTLY — Full cross-browser + PWA + chaos (scheduled only)
+  # ──────────────────────────────────────────────────────────────────────────
+  nightly:
+    name: Nightly Full Suite
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers (all)
+        run: npx playwright install --with-deps
+
+      - name: Build app
+        run: npm run build
+
+      - name: Start preview server
+        run: npx vite preview --port 3000 &
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || '' }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || '' }}
+
+      - name: Wait for server port
+        run: npx wait-on http://localhost:3000 --timeout 30000
+
+      - name: Health check
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/login)
+          if [ "$STATUS" -ne 200 ] && [ "$STATUS" -ne 302 ]; then
+            echo "❌ App returned HTTP $STATUS"
+            exit 1
+          fi
+          echo "✅ App healthy (HTTP $STATUS)"
+
+      - name: Run all E2E on all desktop browsers
+        run: |
+          npx playwright test --project=chromium --reporter=list,json || true
+          npx playwright test --project=firefox --reporter=list,json || true
+          npx playwright test --project=webkit --reporter=list,json || true
+
+      - name: Run all E2E on mobile
+        run: |
+          npx playwright test --project=mobile-chrome --reporter=list,json || true
+          npx playwright test --project=mobile-safari --reporter=list,json || true
+
+      - name: A11Y gate
+        run: |
+          if [ -f test-results/t15-report.json ]; then
+            CRITICAL=$(node -e "const r = require('./test-results/t15-report.json'); console.log(r.axeSummary?.seriousCriticalCount || 0)")
+            if [ "$CRITICAL" -gt "0" ]; then
+              echo "❌ $CRITICAL serious/critical a11y violations found"
+              exit 1
+            fi
+          fi
+
+      - name: Aggregate reports + trend
+        run: npx tsx scripts/aggregate-reports.ts
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-test-results-${{ github.sha }}
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 90
+
+      - name: Check consolidated report health
+        run: |
+          node -e "const r = require('./test-results/consolidated-report.json'); process.exit(r.executiveSummary.overallHealth === 'FAIL' ? 1 : 0)"

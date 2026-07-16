@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { GlobalSearch } from "./GlobalSearch";
-import { Link } from "@tanstack/react-router";
+import { Wordmark } from "./Wordmark";
+import { Link, useLocation } from "@tanstack/react-router";
 import {
   Library,
   X,
@@ -11,7 +12,14 @@ import {
   Flame,
   Search,
   MessageSquare,
+  ChevronLeft,
+  ChevronRight,
+  Heart,
+  Activity,
+  BookMarked,
+  RefreshCw,
 } from "lucide-react";
+import { fetchCourses } from "../lib/api";
 import { useAuthStore } from "../stores/useAuthStore";
 import {
   fetchUserStats,
@@ -22,21 +30,128 @@ import {
 import { showToast } from "./Toast";
 import type { UserStats } from "../types/db";
 
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const SIDEBAR_COLLAPSED_KEY = "sidebar-collapsed";
+
 const navItems = [
+  { label: "Daily Review", path: "/review", icon: RefreshCw },
   { label: "Ask All Notes", path: "/corpus-chat", icon: MessageSquare },
   { label: "Library", path: "/", icon: Library },
   { label: "Progress", path: "/progress", icon: BarChart3 },
   { label: "Settings", path: "/settings", icon: Settings },
+  { label: "About", path: "/about", icon: Heart },
+  ...(import.meta.env.DEV ? [{ label: "Health", path: "/health", icon: Activity }] : []),
 ];
 
+
+
+// ---------------------------------------------------------------------------
+// Hook: localStorage sidebar state
+// ---------------------------------------------------------------------------
+
+function useSidebarState() {
+  const [collapsed, setCollapsedState] = useState(() => {
+    try {
+      return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  const setCollapsed = useCallback((val: boolean) => {
+    setCollapsedState(val);
+    try {
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(val));
+    } catch { /* noop */ }
+  }, []);
+
+  const toggle = useCallback(() => setCollapsed(!collapsed), [collapsed, setCollapsed]);
+
+  return { collapsed, setCollapsed, toggle };
+}
+
+// ---------------------------------------------------------------------------
+// Nav Link Item
+// ---------------------------------------------------------------------------
+
+function NavLink({
+  icon: Icon,
+  label,
+  path,
+  collapsed,
+  onClick,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  path: string;
+  collapsed: boolean;
+  onClick?: () => void;
+}) {
+  const location = useLocation();
+  const isActive =
+    path === "/"
+      ? location.pathname === "/"
+      : location.pathname.startsWith(path);
+
+  return (
+    <Link
+      to={path}
+      activeOptions={{ exact: path === "/" }}
+      onClick={onClick}
+      className={[
+        "group relative flex items-center gap-3 rounded-md transition-all duration-150 ease-standard",
+        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+        collapsed ? "h-10 justify-center w-10 mx-auto" : "h-10 px-3 w-full",
+        isActive
+          ? "bg-accent-subtle text-accent"
+          : "text-text-tertiary hover:bg-surface-subtle hover:text-text-secondary",
+      ].join(" ")}
+      aria-current={isActive ? "page" : undefined}
+    >
+      <Icon
+        className={[
+          "h-5 w-5 shrink-0 transition-colors duration-150",
+          isActive ? "text-accent" : "text-current",
+        ].join(" ")}
+        aria-hidden="true"
+      />
+      {!collapsed && (
+        <span className="text-label font-medium truncate">{label}</span>
+      )}
+
+      {/* Active indicator bar */}
+      {isActive && !collapsed && (
+        <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-accent" />
+      )}
+
+      {/* Tooltip when collapsed */}
+      {collapsed && (
+        <div className="pointer-events-none absolute left-full ml-2 z-50 hidden rounded-md bg-surface-elevated px-2.5 py-1.5 text-label text-text shadow-3 ring-1 ring-border whitespace-nowrap group-hover:block opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+          {label}
+        </div>
+      )}
+    </Link>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main Sidebar Component
+// ---------------------------------------------------------------------------
+
 export function Sidebar() {
+  const { collapsed, toggle } = useSidebarState();
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const { user, signOut, loading } = useAuthStore();
   const [stats, setStats] = useState<UserStats | null>(null);
+  const [courses, setCourses] = useState<Array<{ id: string; title: string }>>([]);
 
   useEffect(() => {
     fetchUserStats().then(setStats);
+    fetchCourses().then(c => { setCourses(c.map(({ id, title }) => ({ id, title }))); }).catch(() => {});
   }, []);
 
   const displayName =
@@ -68,143 +183,323 @@ export function Sidebar() {
   const xpNext = xpToNextLevel(xp);
   const streak = stats?.current_streak ?? 0;
 
-  return (
-    <>
-      <button
-        onClick={() => setMobileOpen(!mobileOpen)}
-        className="fixed left-4 top-4 z-50 rounded-md border border-border dark:border-[#27272A] bg-white dark:bg-[#161618] text-text-secondary dark:text-[#A1A1AA] p-2.5 shadow-xs lg:hidden hover:bg-bg-muted dark:hover:bg-[#1C1C1F]"
-        aria-label="Toggle sidebar"
-      >
-        {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-      </button>
+  const closeMobile = () => setMobileOpen(false);
 
+  // ===== Desktop Sidebar =====
+  const desktopSidebar = (
+    <aside
+      className={[
+        "hidden lg:flex flex-col chrome-sidebar elevated-1 shrink-0",
+        "transition-all duration-[var(--dur-base)] ease-standard",
+        collapsed ? `w-16` : `w-[260px]`,
+      ].join(" ")}
+    >
+      {/* Brand */}
       <div
-        className={`fixed inset-0 z-30 bg-black/20 dark:bg-black/40 transition-opacity duration-200 ease-out lg:hidden ${
-          mobileOpen ? "opacity-100" : "pointer-events-none opacity-0"
-        }`}
-        onClick={() => setMobileOpen(false)}
-      />
-
-      <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-[260px] flex-col border-r border-border dark:border-[#27272A] bg-white dark:bg-[#161618] shadow-sm transition-transform duration-200 ease-out lg:static lg:translate-x-0 ${
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
+        className={[
+          "flex shrink-0 items-center border-b border-border-hairline",
+          collapsed ? "h-16 justify-center" : "h-16 px-5",
+        ].join(" ")}
       >
-        {/* Logo / wordmark */}
-        <div className="flex h-16 items-center gap-3 border-b border-border dark:border-[#27272A] px-5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-500 text-label font-bold text-white shadow-xs">
-            L
+        {collapsed ? (
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-500 text-white shadow-xs">
+            <Library className="h-4 w-4" />
           </div>
-          <span className="text-label font-semibold text-text dark:text-[#FAFAFA]">
-            Lecture-to-Mastery
-          </span>
-        </div>
+        ) : (
+          <Wordmark size="sm" />
+        )}
+      </div>
 
-        {/* XP Bar & Level */}
-        <div className="border-b border-border dark:border-[#27272A] px-5 py-3">
-          <div className="flex items-center justify-between mb-2">
+      {/* XP bar (expanded only) */}
+      {!collapsed && (
+        <div className="border-b border-border-hairline px-5 py-3">
+          <div className="mb-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="flex h-6 items-center rounded-md bg-brand-500 px-2 text-caption font-semibold text-white">
                 Lv.{level}
               </div>
               {streak > 0 && (
-                <div className="flex items-center gap-1 text-caption font-medium text-orange-500">
+                <div className="flex items-center gap-1 text-caption font-medium text-mastery-low">
                   <Flame className="h-3.5 w-3.5" />
                   {streak}
                 </div>
               )}
             </div>
-            <span className="text-caption text-text-muted dark:text-[#71717A]">
-              {xp} XP
-            </span>
+            <span className="text-caption text-text-tertiary">{xp} XP</span>
           </div>
-          <div className="h-2 w-full overflow-hidden rounded-full bg-bg-muted dark:bg-[#1C1C1F]">
+          <div className="h-2 w-full overflow-hidden rounded-full bg-surface-muted">
             <div
               className="h-full rounded-full bg-brand-500 transition-all duration-500 ease-out"
               style={{ width: `${Math.min(100, Math.round(progress * 100))}%` }}
             />
           </div>
-          <p className="mt-1 text-caption text-text-muted dark:text-[#71717A]">
+          <p className="mt-1 text-caption text-text-tertiary">
             {xpNext > 0 ? `${xpNext} XP to next level` : "Max level!"}
           </p>
         </div>
+      )}
 
-        {/* Nav section */}
-        <div className="flex-1 overflow-y-auto px-3 pt-4 pb-4">
-          <p className="mb-3 px-3 text-sectionLabel uppercase tracking-wider text-text-muted dark:text-[#71717A]">
-            Workspace
-          </p>
-
-          <nav className="space-y-1">
-            <button
-              onClick={() => setSearchOpen(true)}
-              className="group relative flex h-10 w-full items-center gap-3 rounded-md px-3 text-label font-medium text-text-secondary dark:text-[#A1A1AA] transition-colors duration-150 ease-out hover:bg-bg-muted dark:hover:bg-[#1C1C1F] hover:text-text dark:hover:text-[#FAFAFA]"
-            >
-              <Search
-                className="h-[18px] w-[18px] shrink-0 text-current"
-                aria-hidden="true"
-              />
-              <span>Search</span>
-            </button>
-            {navItems.map((item) => (
-              <Link
-                key={item.path}
-                to={item.path}
-                activeOptions={{ exact: true }}
-                className="group relative flex h-10 items-center gap-3 rounded-md px-3 text-label font-medium text-text-secondary dark:text-[#A1A1AA] transition-colors duration-150 ease-out hover:bg-bg-muted dark:hover:bg-[#1C1C1F] hover:text-text dark:hover:text-[#FAFAFA] [&.active]:bg-brand-550 [&.active]:bg-brand-50 dark:[&.active]:bg-brand-950/20 [&.active]:text-brand-700 dark:[&.active]:text-brand-400"
-                onClick={() => setMobileOpen(false)}
-              >
-                <item.icon
-                  className="h-[18px] w-[18px] shrink-0 text-current [.active_&]:text-brand-500"
-                  aria-hidden="true"
-                />
-                <span>{item.label}</span>
-                <span className="absolute left-0 top-1/2 hidden h-5 w-0.5 -translate-y-1/2 rounded-full bg-brand-500 [.active>&]:block" />
-              </Link>
-            ))}
-          </nav>
+      {/* XP chip (collapsed only) */}
+      {collapsed && (
+        <div className="flex justify-center border-b border-border-hairline py-3">
+          <div className="flex h-6 items-center rounded-md bg-brand-500 px-1.5 text-caption font-semibold text-white">
+            Lv.{level}
+          </div>
         </div>
+      )}
 
-        {/* Footer user block */}
-        <div className="border-t border-border dark:border-[#27272A] px-5 py-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-bg-muted dark:bg-[#1C1C1F] text-caption font-semibold text-text-secondary dark:text-[#A1A1AA]">
-              {initials || "?"}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-label font-medium text-text dark:text-[#FAFAFA]">
-                {displayName}
+      {/* Nav */}
+      <div className="flex-1 overflow-y-auto px-3 pt-4 pb-4">
+        <nav className={collapsed ? "flex flex-col items-center gap-1" : "space-y-1"}>
+          {/* Search button */}
+          <button
+            onClick={() => setSearchOpen(true)}
+            className={[
+              "group relative flex items-center gap-3 rounded-md transition-all duration-150 ease-standard",
+              "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+              collapsed ? "h-10 justify-center w-10 mx-auto" : "h-10 px-3 w-full",
+              "text-text-tertiary hover:bg-surface-subtle hover:text-text-secondary",
+            ].join(" ")}
+          >
+            <Search className="h-5 w-5 shrink-0 text-current" aria-hidden="true" />
+            {!collapsed && <span className="text-label font-medium">Search</span>}
+            {collapsed && (
+              <div className="pointer-events-none absolute left-full ml-2 z-50 hidden rounded-md bg-surface-elevated px-2.5 py-1.5 text-label text-text shadow-3 ring-1 ring-border whitespace-nowrap group-hover:block opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                Search
+              </div>
+            )}
+          </button>
+
+          {navItems.map((item) => (
+            <NavLink
+              key={item.path}
+              icon={item.icon}
+              label={item.label}
+              path={item.path}
+              collapsed={collapsed}
+            />
+          ))}
+
+          {/* Courses section */}
+          {courses.length > 0 && !collapsed && (
+            <div className="pt-4">
+              <p className="mb-2 px-3 text-caption font-semibold uppercase tracking-wider text-text-muted">
+                Courses
               </p>
-              {email && (
-                <p className="truncate text-caption text-text-muted dark:text-[#71717A]">
-                  {email}
-                </p>
-              )}
-              {user?.is_anonymous && (
-                <p className="truncate text-caption text-text-muted dark:text-[#71717A]">
-                  Guest
-                </p>
-              )}
+              <div className="space-y-0.5">
+                {courses.map((course) => (
+                  <NavLink
+                    key={course.id}
+                    icon={BookMarked}
+                    label={course.title}
+                    path={`/course/${course.id}` as any}
+                    collapsed={false}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </nav>
+      </div>
+
+      {/* Footer */}
+      <div className="border-t border-border-hairline px-3 py-3">
+        {collapsed ? (
+          <div className="flex flex-col items-center gap-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-muted text-caption font-semibold text-text-tertiary">
+              {initials || "?"}
             </div>
             <button
               onClick={handleSignOut}
               disabled={loading}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted dark:text-[#71717A] transition-colors duration-150 ease-out hover:bg-bg-muted dark:hover:bg-[#1C1C1F] hover:text-text-secondary dark:hover:text-[#A1A1AA] disabled:opacity-50"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-text-tertiary transition-colors duration-150 hover:bg-surface-subtle hover:text-text-secondary disabled:opacity-50"
               aria-label="Sign out"
             >
               <LogOut className="h-4 w-4" />
             </button>
           </div>
-          <p className="mt-3 text-caption text-text-muted/60 dark:text-[#71717A]/60">
-            Next Byte Hacks V3
-          </p>
-          <GlobalSearch
-            open={searchOpen}
-            onClose={() => setSearchOpen(false)}
+        ) : (
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-muted text-caption font-semibold text-text-tertiary">
+                {initials || "?"}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-label font-medium text-text">{displayName}</p>
+                {email && (
+                  <p className="truncate text-caption text-text-tertiary">{email}</p>
+                )}
+                {user?.is_anonymous && (
+                  <p className="truncate text-caption text-text-tertiary">Guest</p>
+                )}
+              </div>
+              <button
+                onClick={handleSignOut}
+                disabled={loading}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-tertiary transition-colors duration-150 hover:bg-surface-subtle hover:text-text-secondary disabled:opacity-50"
+                aria-label="Sign out"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            </div>
+            <p className="text-caption text-text-tertiary/60">Next Byte Hacks V3</p>
+          </div>
+        )}
+      </div>
+
+      {/* Collapse toggle */}
+      <button
+        onClick={toggle}
+        className="flex h-8 items-center justify-center border-t border-border-hairline text-text-tertiary transition-colors duration-150 hover:bg-surface-subtle hover:text-text-secondary"
+        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+      >
+        {collapsed ? (
+          <ChevronRight className="h-4 w-4" />
+        ) : (
+          <ChevronLeft className="h-4 w-4" />
+        )}
+      </button>
+    </aside>
+  );
+
+  // ===== Mobile Drawer =====
+  const mobileButton = (
+    <button
+      onClick={() => setMobileOpen(!mobileOpen)}
+      className="fixed left-4 top-4 z-50 flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-surface text-text-tertiary shadow-xs lg:hidden hover:bg-surface-subtle"
+      aria-label="Toggle navigation menu"
+    >
+      {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+    </button>
+  );
+
+  const mobileScrim = (
+    <div
+      className={`fixed inset-0 z-30 bg-black/40 backdrop-blur-[2px] transition-opacity duration-[var(--dur-base)] ease-standard lg:hidden ${
+        mobileOpen ? "opacity-100" : "pointer-events-none opacity-0"
+      }`}
+      onClick={closeMobile}
+    />
+  );
+
+  const mobileDrawer = (
+    <aside
+      className={[
+        "fixed inset-y-0 left-0 z-40 flex w-[280px] flex-col bg-surface border-r border-border-hairline elevated-2",
+        "transition-transform duration-[var(--dur-slow)] ease-spring lg:hidden",
+        "pb-safe", // safe-area aware for bottom notch
+        mobileOpen ? "translate-x-0" : "-translate-x-full",
+      ].join(" ")}
+    >
+      {/* Brand */}
+      <div className="flex h-16 shrink-0 items-center px-5 border-b border-border-hairline">
+        <Wordmark size="sm" />
+      </div>
+
+      {/* XP bar */}
+      <div className="px-5 py-3 border-b border-border-hairline">
+        <div className="mb-2 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="flex h-6 items-center rounded-md bg-brand-500 px-2 text-caption font-semibold text-white">
+              Lv.{level}
+            </div>
+            {streak > 0 && (
+              <div className="flex items-center gap-1 text-caption font-medium text-mastery-low">
+                <Flame className="h-3.5 w-3.5" />
+                {streak}
+              </div>
+            )}
+          </div>
+          <span className="text-caption text-text-tertiary">{xp} XP</span>
+        </div>
+        <div className="h-2 w-full overflow-hidden rounded-full bg-surface-muted">
+          <div
+            className="h-full rounded-full bg-brand-500 transition-all duration-500 ease-out"
+            style={{ width: `${Math.min(100, Math.round(progress * 100))}%` }}
           />
         </div>
-      </aside>
+        <p className="mt-1 text-caption text-text-tertiary">
+          {xpNext > 0 ? `${xpNext} XP to next level` : "Max level!"}
+        </p>
+      </div>
+
+      {/* Nav */}
+      <div className="flex-1 overflow-y-auto px-3 pt-4 pb-4">
+        <nav className="space-y-1">
+          <button
+            onClick={() => { setSearchOpen(true); closeMobile(); }}
+            className="flex h-10 w-full items-center gap-3 rounded-md px-3 text-label font-medium text-text-tertiary transition-colors duration-150 hover:bg-surface-subtle hover:text-text-secondary"
+          >
+            <Search className="h-5 w-5 shrink-0 text-current" aria-hidden="true" />
+            <span>Search</span>
+          </button>
+          {navItems.map((item) => (
+            <NavLink
+              key={item.path}
+              icon={item.icon}
+              label={item.label}
+              path={item.path}
+              collapsed={false}
+              onClick={closeMobile}
+            />
+          ))}
+
+          {/* Courses in mobile nav */}
+          {courses.length > 0 && (
+            <div className="pt-4">
+              <p className="mb-2 px-3 text-caption font-semibold uppercase tracking-wider text-text-muted">
+                Courses
+              </p>
+              <div className="space-y-0.5">
+                {courses.map((course) => (
+                  <NavLink
+                    key={course.id}
+                    icon={BookMarked}
+                    label={course.title}
+                    path={`/course/${course.id}` as any}
+                    collapsed={false}
+                    onClick={closeMobile}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </nav>
+      </div>
+
+      {/* Footer */}
+      <div className="border-t border-border-hairline px-5 py-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-muted text-caption font-semibold text-text-tertiary">
+            {initials || "?"}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-label font-medium text-text">{displayName}</p>
+            {email && <p className="truncate text-caption text-text-tertiary">{email}</p>}
+            {user?.is_anonymous && <p className="truncate text-caption text-text-tertiary">Guest</p>}
+          </div>
+          <button
+            onClick={handleSignOut}
+            disabled={loading}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-tertiary transition-colors duration-150 hover:bg-surface-subtle hover:text-text-secondary disabled:opacity-50"
+            aria-label="Sign out"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </aside>
+  );
+
+  return (
+    <>
+      {mobileButton}
+      {mobileScrim}
+      {mobileDrawer}
+      {desktopSidebar}
+      <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
     </>
   );
 }
+
 export default Sidebar;

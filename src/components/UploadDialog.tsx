@@ -1,46 +1,575 @@
-import { useState, useRef, type FormEvent } from "react";
-import * as pdfjsLib from "pdfjs-dist";
-import { supabase } from "../lib/supabase";
-import { chunkText } from "../lib/chunk";
-import { embedDocument } from "../lib/api";
+import { useState, useRef, useEffect, type FormEvent } from "react";
+import { fetchCourses, addDocumentToCourse } from "../lib/api";
+import { ingestText } from "../lib/ingest";
+import {
+  fetchYouTubeTranscript,
+  extractOfficeText,
+  ocrImage,
+  transcribeAudio,
+} from "../lib/importers";
 import { useAppStore } from "../stores/useAppStore";
 import { showToast } from "./Toast";
+import { Dialog } from "./Dialog";
 import { Button } from "./Button";
 import { Input } from "./Input";
-import { X, Upload, FileText, FileX } from "lucide-react";
+import {
+  Upload,
+  FileText,
+  FileX,
+  Clipboard,
+  Check,
+  Loader2,
+  BookMarked,
+  PlayCircle,
+  File,
+  Image,
+  Music,
+  Link,
+} from "lucide-react";
+import { usePressable } from "../hooks/usePressable";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 interface UploadDialogProps {
   open: boolean;
   onClose: () => void;
 }
 
-type Mode = "pdf" | "text";
+type SourceMode =
+  | "pdf"
+  | "text"
+  | "youtube"
+  | "office"
+  | "image"
+  | "audio";
+
+interface SourceTab {
+  id: SourceMode;
+  label: string;
+  icon: React.ReactNode;
+  accept?: string;
+}
+
+const SOURCE_TABS: SourceTab[] = [
+  { id: "pdf", label: "PDF", icon: <Upload className="h-4 w-4" />, accept: ".pdf,application/pdf" },
+  { id: "text", label: "Text", icon: <Clipboard className="h-4 w-4" /> },
+  { id: "youtube", label: "YouTube", icon: <PlayCircle className="h-4 w-4" /> },
+  { id: "office", label: "Office", icon: <File className="h-4 w-4" />, accept: ".docx,.pptx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation" },
+  { id: "image", label: "Image", icon: <Image className="h-4 w-4" />, accept: "image/*" },
+  { id: "audio", label: "Audio", icon: <Music className="h-4 w-4" />, accept: "audio/*" },
+];
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// ---------------------------------------------------------------------------
+// Drop Zone Component (reusable for file-based sources)
+// ---------------------------------------------------------------------------
+
+function DropZone({
+  file,
+  dragOver,
+  loading,
+  accept,
+  onDrop,
+  onFileSelect,
+  onClear,
+  onDragOver,
+  onDragLeave,
+}: {
+  file: File | null;
+  dragOver: boolean;
+  loading: boolean;
+  accept: string;
+  onDrop: (e: React.DragEvent) => void;
+  onFileSelect: (f: File | null) => void;
+  onClear: () => void;
+  onDragOver: () => void;
+  onDragLeave: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const pressable = usePressable();
+
+  if (file) {
+    return (
+      <div className="flex items-center gap-4 rounded-lg border border-border-hairline bg-surface px-4 py-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-500">
+          <FileText className="h-5 w-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-label text-text truncate font-medium">{file.name}</p>
+          <p className="text-small text-text-tertiary">{formatFileSize(file.size)}</p>
+        </div>
+        {!loading && (
+          <button
+            type="button"
+            onClick={onClear}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-tertiary transition-colors duration-150 hover:bg-surface-subtle hover:text-text-secondary"
+            aria-label="Remove file"
+            {...pressable}
+          >
+            <FileX className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      onDragOver={(e) => { e.preventDefault(); onDragOver(); }}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      onClick={() => inputRef.current?.click()}
+      className={[
+        "flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 text-center transition-all duration-150 ease-standard",
+        dragOver
+          ? "border-brand-500 bg-brand-50"
+          : "border-border-hairline bg-surface-subtle hover:border-border-strong hover:bg-surface",
+      ].join(" ")}
+      {...pressable}
+    >
+      <input
+        ref={inputRef}
+        type="file"
+        accept={accept}
+        className="hidden"
+        onChange={(e) => onFileSelect(e.target.files?.[0] ?? null)}
+        disabled={loading}
+      />
+      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-surface-muted text-text-tertiary">
+        <Upload className="h-6 w-6" />
+      </div>
+      <p className="text-label text-text-secondary">Drop a file here, or click to browse</p>
+      <p className="mt-1 text-small text-text-tertiary">
+        {accept.includes("pdf") && "PDF files up to 10 MB"}
+        {accept.includes("docx") && "DOCX / PPTX files up to 10 MB"}
+        {accept.includes("image") && "Images (PNG, JPG, etc.) up to 10 MB"}
+        {accept.includes("audio") && "Audio files (MP3, WAV, M4A, etc.) up to 25 MB"}
+      </p>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Progress Indicator
+// ---------------------------------------------------------------------------
+
+function ProgressBar({
+  phase,
+  customLabel,
+}: {
+  phase: "saving" | "indexing" | "done" | "extracting" | "transcribing";
+  customLabel?: string;
+}) {
+  const pct =
+    phase === "saving" ? 40
+    : phase === "extracting" ? 20
+    : phase === "transcribing" ? 25
+    : phase === "indexing" ? 75
+    : 100;
+
+  const labels: Record<string, string> = {
+    saving: "Saving document...",
+    extracting: "Extracting content...",
+    transcribing: "Transcribing audio...",
+    indexing: "Indexing content...",
+    done: "Done!",
+  };
+
+  const label = customLabel || labels[phase] || phase;
+
+  return (
+    <div className="rounded-lg border border-border-hairline bg-surface px-4 py-3">
+      <div className="mb-2 flex items-center justify-between text-small">
+        <span className="flex items-center gap-1.5 text-text-secondary">
+          {phase === "done" ? (
+            <Check className="h-3.5 w-3.5 text-mastery-high" />
+          ) : (
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-500" />
+          )}
+          {label}
+        </span>
+        <span className="tabular-nums text-text-tertiary">{pct}%</span>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-muted">
+        <div
+          className="h-full rounded-full bg-brand-500 transition-all duration-500 ease-out"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Source tab components
+// ---------------------------------------------------------------------------
+
+function PdfTab({
+  file,
+  dragOver,
+  loading,
+  onDrop,
+  onFileSelect,
+  onClear,
+  onDragOver,
+  onDragLeave,
+}: {
+  file: File | null;
+  dragOver: boolean;
+  loading: boolean;
+  onDrop: (e: React.DragEvent) => void;
+  onFileSelect: (f: File | null) => void;
+  onClear: () => void;
+  onDragOver: () => void;
+  onDragLeave: () => void;
+}) {
+  return (
+    <DropZone
+      file={file}
+      dragOver={dragOver}
+      loading={loading}
+      accept=".pdf,application/pdf"
+      onDrop={onDrop}
+      onFileSelect={onFileSelect}
+      onClear={onClear}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+    />
+  );
+}
+
+function TextTab({
+  pastedText,
+  loading,
+  onChange,
+}: {
+  pastedText: string;
+  loading: boolean;
+  onChange: (text: string) => void;
+}) {
+  const charCount = pastedText.trim().length;
+  return (
+    <div>
+      <textarea
+        value={pastedText}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Paste your lecture notes, slides text, or any study material here..."
+        rows={8}
+        disabled={loading}
+        className="w-full resize-y rounded-md border border-border bg-surface px-3 py-2.5 text-body text-text placeholder:text-text-muted transition-all duration-150 ease-standard focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:opacity-50 min-h-[140px] leading-relaxed"
+      />
+      <div className="mt-1 flex justify-end">
+        <span className="text-caption text-text-tertiary tabular-nums">
+          {charCount.toLocaleString()} character{charCount !== 1 ? "s" : ""}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function YoutubeTab({
+  youtubeUrl,
+  loading,
+  onChange,
+}: {
+  youtubeUrl: string;
+  loading: boolean;
+  onChange: (url: string) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 rounded-lg border border-border-hairline bg-surface-subtle px-4 py-3 text-small text-text-secondary">
+        <PlayCircle className="h-4 w-4 text-red-500" />
+        <span>Enter a YouTube video URL. Works with any video that has captions (auto-generated or manual).</span>
+      </div>
+      <div className="relative">
+        <Link className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
+        <input
+          type="url"
+          value={youtubeUrl}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="https://youtube.com/watch?v=..."
+          disabled={loading}
+          className="w-full rounded-md border border-border bg-surface py-2.5 pl-9 pr-3 text-body text-text placeholder-text-muted transition-all duration-150 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:opacity-50"
+        />
+      </div>
+    </div>
+  );
+}
+
+function OfficeTab({
+  file,
+  loading,
+  onFileSelect,
+  onClear,
+}: {
+  file: File | null;
+  loading: boolean;
+  onFileSelect: (f: File | null) => void;
+  onClear: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const pressable = usePressable();
+
+  if (file) {
+    return (
+      <div className="flex items-center gap-4 rounded-lg border border-border-hairline bg-surface px-4 py-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-500">
+          <File className="h-5 w-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-label text-text truncate font-medium">{file.name}</p>
+          <p className="text-small text-text-tertiary">{formatFileSize(file.size)}</p>
+        </div>
+        {!loading && (
+          <button
+            type="button"
+            onClick={onClear}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-tertiary transition-colors duration-150 hover:bg-surface-subtle hover:text-text-secondary"
+            aria-label="Remove file"
+            {...pressable}
+          >
+            <FileX className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      onClick={() => inputRef.current?.click()}
+      className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 text-center transition-all duration-150 ease-standard border-border-hairline bg-surface-subtle hover:border-border-strong hover:bg-surface"
+      {...pressable}
+    >
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".docx,.pptx"
+        className="hidden"
+        onChange={(e) => onFileSelect(e.target.files?.[0] ?? null)}
+        disabled={loading}
+      />
+      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-surface-muted text-text-tertiary">
+        <File className="h-6 w-6" />
+      </div>
+      <p className="text-label text-text-secondary">Select a DOCX or PPTX file</p>
+      <p className="mt-1 text-small text-text-tertiary">Word documents and PowerPoint presentations up to 10 MB</p>
+    </div>
+  );
+}
+
+function ImageTab({
+  file,
+  loading,
+  onFileSelect,
+  onClear,
+}: {
+  file: File | null;
+  loading: boolean;
+  onFileSelect: (f: File | null) => void;
+  onClear: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const pressable = usePressable();
+
+  if (file) {
+    return (
+      <div className="flex items-center gap-4 rounded-lg border border-border-hairline bg-surface px-4 py-3">
+        {file.type.startsWith("image/") && (
+          <img
+            src={URL.createObjectURL(file)}
+            alt="Preview"
+            className="h-14 w-14 shrink-0 rounded-lg object-cover border border-border"
+          />
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="text-label text-text truncate font-medium">{file.name}</p>
+          <p className="text-small text-text-tertiary">{formatFileSize(file.size)}</p>
+        </div>
+        {!loading && (
+          <button
+            type="button"
+            onClick={onClear}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-tertiary transition-colors duration-150 hover:bg-surface-subtle hover:text-text-secondary"
+            aria-label="Remove file"
+            {...pressable}
+          >
+            <FileX className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      onClick={() => inputRef.current?.click()}
+      className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 text-center transition-all duration-150 ease-standard border-border-hairline bg-surface-subtle hover:border-border-strong hover:bg-surface"
+      {...pressable}
+    >
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => onFileSelect(e.target.files?.[0] ?? null)}
+        disabled={loading}
+      />
+      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-surface-muted text-text-tertiary">
+        <Image className="h-6 w-6" />
+      </div>
+      <p className="text-label text-text-secondary">Upload an image of notes or slides</p>
+      <p className="mt-1 text-small text-text-tertiary">PNG, JPG, etc. up to 10 MB</p>
+    </div>
+  );
+}
+
+function AudioTab({
+  file,
+  loading,
+  onFileSelect,
+  onClear,
+}: {
+  file: File | null;
+  loading: boolean;
+  onFileSelect: (f: File | null) => void;
+  onClear: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const pressable = usePressable();
+
+  if (file) {
+    return (
+      <div className="flex items-center gap-4 rounded-lg border border-border-hairline bg-surface px-4 py-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-500">
+          <Music className="h-5 w-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-label text-text truncate font-medium">{file.name}</p>
+          <p className="text-small text-text-tertiary">{formatFileSize(file.size)}</p>
+        </div>
+        {!loading && (
+          <button
+            type="button"
+            onClick={onClear}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-tertiary transition-colors duration-150 hover:bg-surface-subtle hover:text-text-secondary"
+            aria-label="Remove file"
+            {...pressable}
+          >
+            <FileX className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      onClick={() => inputRef.current?.click()}
+      className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 text-center transition-all duration-150 ease-standard border-border-hairline bg-surface-subtle hover:border-border-strong hover:bg-surface"
+      {...pressable}
+    >
+      <input
+        ref={inputRef}
+        type="file"
+        accept="audio/*"
+        className="hidden"
+        onChange={(e) => onFileSelect(e.target.files?.[0] ?? null)}
+        disabled={loading}
+      />
+      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-surface-muted text-text-tertiary">
+        <Music className="h-6 w-6" />
+      </div>
+      <p className="text-label text-text-secondary">Upload an audio recording of a lecture</p>
+      <p className="mt-1 text-small text-text-tertiary">MP3, WAV, M4A, etc. up to 25 MB</p>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main Component
+// ---------------------------------------------------------------------------
 
 export function UploadDialog({ open, onClose }: UploadDialogProps) {
-  const [mode, setMode] = useState<Mode>("pdf");
+  const [sourceMode, setSourceMode] = useState<SourceMode>("pdf");
   const [title, setTitle] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [pastedText, setPastedText] = useState("");
+  const [youtubeUrl, setYoutubeUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [indexing, setIndexing] = useState(false);
+  const [progressPhase, setProgressPhase] = useState<
+    "saving" | "indexing" | "done" | "extracting" | "transcribing" | null
+  >(null);
   const [dragOver, setDragOver] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [userCourses, setUserCourses] = useState<
+    Array<{ id: string; title: string }>
+  >([]);
+  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const addDocument = useAppStore((s) => s.addDocument);
 
-  if (!open) return null;
+  useEffect(() => {
+    if (open) {
+      fetchCourses()
+        .then((c) =>
+          setUserCourses(c.map(({ id, title }) => ({ id, title })))
+        )
+        .catch(() => {});
+    }
+  }, [open]);
 
   const reset = () => {
     setTitle("");
     setFile(null);
     setPastedText("");
+    setYoutubeUrl("");
     setError(null);
-    setMode("pdf");
+    setProgressPhase(null);
   };
 
   const handleClose = () => {
     reset();
     onClose();
+  };
+
+  const getSourceType = (): string => {
+    switch (sourceMode) {
+      case "pdf": return "pdf";
+      case "text": return "text";
+      case "youtube": return "youtube";
+      case "office": {
+        if (file) {
+          const name = file.name.toLowerCase();
+          if (name.endsWith(".docx")) return "docx";
+          if (name.endsWith(".pptx")) return "pptx";
+        }
+        return "office";
+      }
+      case "image": return "image";
+      case "audio": return "audio";
+    }
+  };
+
+  const getMaxFileSize = (): number => {
+    switch (sourceMode) {
+      case "pdf":
+      case "office":
+      case "image": return 10 * 1024 * 1024;
+      case "audio": return 25 * 1024 * 1024;
+      default: return 10 * 1024 * 1024;
+    }
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -57,110 +586,120 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
       return;
     }
 
-    let rawText = "";
+    setLoading(true);
 
-    if (mode === "pdf") {
-      if (!file) {
-        setError("Please select a PDF file.");
-        return;
-      }
-      if (file.type !== "application/pdf" && !file.name.endsWith(".pdf")) {
-        setError("File must be a PDF.");
-        return;
-      }
-      if (file.size > 10 * 1024 * 1024) {
-        setError("PDF must be under 10 MB.");
-        return;
-      }
+    try {
+      // ── Step 1: Get raw text from the source ──────────────────────────
+      let rawText = "";
+      let sourceMeta: Record<string, unknown> | null = null;
 
-      try {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-          "pdfjs-dist/build/pdf.worker.min.mjs",
-          import.meta.url,
-        ).toString();
+      if (sourceMode === "pdf") {
+        // PDF extraction
+        if (!file) { setError("Please select a PDF file."); setLoading(false); return; }
+        if (file.size > getMaxFileSize()) { setError("PDF must be under 10 MB."); setLoading(false); return; }
 
+        setProgressPhase("extracting");
+        const pdfjsLib = await import("pdfjs-dist");
+        const workerModule = await import("pdfjs-dist/build/pdf.worker.min.mjs?url");
+        pdfjsLib.GlobalWorkerOptions.workerSrc = workerModule.default;
         const buffer = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
         const pages: string[] = [];
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
           const tc = await page.getTextContent();
-          const text = tc.items.map((it) => (it as any).str).join(" ");
+          const text = tc.items.map((it: any) => it.str).join(" ");
           pages.push(text);
         }
         rawText = pages.join("\n\n").trim();
-      } catch (err) {
-        setError(`Failed to read PDF: ${(err as Error).message}`);
+        sourceMeta = { pageCount: pdf.numPages };
+      } else if (sourceMode === "text") {
+        rawText = pastedText.trim();
+        if (!rawText) { setError("Please paste some text."); setLoading(false); return; }
+        if (rawText.length > 100000) { setError("Pasted text must be under 100,000 characters."); setLoading(false); return; }
+      } else if (sourceMode === "youtube") {
+        if (!youtubeUrl.trim()) { setError("Please enter a YouTube URL."); setLoading(false); return; }
+        setProgressPhase("extracting");
+        const result = await fetchYouTubeTranscript(youtubeUrl.trim());
+        rawText = result.text;
+        sourceMeta = result.sourceMeta as Record<string, unknown>;
+      } else if (sourceMode === "office") {
+        if (!file) { setError("Please select a DOCX or PPTX file."); setLoading(false); return; }
+        if (file.size > getMaxFileSize()) { setError("File must be under 10 MB."); setLoading(false); return; }
+        setProgressPhase("extracting");
+        const result = await extractOfficeText(file);
+        rawText = result.text;
+        sourceMeta = { fileName: file.name, originalFormat: result.sourceType };
+      } else if (sourceMode === "image") {
+        if (!file) { setError("Please select an image."); setLoading(false); return; }
+        if (file.size > getMaxFileSize()) { setError("Image must be under 10 MB."); setLoading(false); return; }
+        setProgressPhase("extracting");
+        const result = await ocrImage(file);
+        rawText = result.text;
+        sourceMeta = result.sourceMeta as Record<string, unknown>;
+      } else if (sourceMode === "audio") {
+        if (!file) { setError("Please select an audio file."); setLoading(false); return; }
+        if (file.size > getMaxFileSize()) { setError("Audio must be under 25 MB."); setLoading(false); return; }
+        setProgressPhase("transcribing");
+        const result = await transcribeAudio(file);
+        rawText = result.text;
+        sourceMeta = result.sourceMeta as Record<string, unknown>;
+      }
+
+      if (rawText.length < 200) {
+        const msg = sourceMode === "youtube"
+          ? 'The YouTube transcript is too short (< 200 chars). Try a longer video or use "Paste text" instead.'
+          : "The extracted text is too short (< 200 chars). Please use a different source.";
+        setError(msg);
         setLoading(false);
         return;
       }
-    } else {
-      rawText = pastedText.trim();
-      if (!rawText) {
-        setError("Please paste some text.");
-        return;
-      }
-      if (rawText.length > 100000) {
-        setError("Pasted text must be under 100,000 characters.");
-        return;
-      }
-    }
 
-    setLoading(true);
+      // ── Step 2: Ingest via shared pipeline ────────────────────────────
+      setProgressPhase("saving");
+      const result = await ingestText({
+        title: trimmedTitle,
+        rawText,
+        sourceType: getSourceType(),
+        sourceMeta,
+      });
 
-    if (rawText.length < 200) {
-      setError(
-        mode === "pdf"
-          ? 'The PDF contains very little text (< 200 chars). Try copying the text and using "Paste text" instead.'
-          : "Please paste at least 200 characters.",
-      );
-      setLoading(false);
-      return;
-    }
+      setProgressPhase("done");
+      addDocument(result.doc);
 
-    const chunks = chunkText(rawText);
-    const sourceType = mode === "pdf" ? "pdf" : "text";
-
-    try {
-      const { data: doc, error: docErr } = await supabase
-        .from("documents")
-        .insert({ title: trimmedTitle, source_type: sourceType })
-        .select()
-        .single();
-
-      if (docErr) throw docErr;
-      if (!doc) throw new Error("No document returned after insert.");
-
-      const chunkRows = chunks.map((content, idx) => ({
-        document_id: doc.id,
-        content,
-        chunk_index: idx,
-        embedding: null,
-      }));
-
-      const { error: chunkErr } = await supabase
-        .from("chunks")
-        .insert(chunkRows);
-      if (chunkErr) throw chunkErr;
-
-      setIndexing(true);
-      try {
-        await embedDocument(doc.id);
-      } catch (embedErr) {
-        setError(
-          `Document saved, but indexing failed: ${(embedErr as Error).message}. You can re-index later.`,
+      if (result.failedCount > 0) {
+        showToast(
+          "warning",
+          `"${trimmedTitle}" added, but ${result.failedCount} chunks failed to index.`
         );
-        setIndexing(false);
-        setLoading(false);
-        return;
+      } else {
+        showToast("success", `"${trimmedTitle}" added successfully`);
       }
 
-      setIndexing(false);
-      addDocument(doc);
-      showToast("success", `"${trimmedTitle}" added successfully`);
-      handleClose();
+      // Optional: assign to course
+      if (selectedCourseId) {
+        await addDocumentToCourse(selectedCourseId, result.doc.id);
+        showToast("success", "Assigned to course");
+      }
+
+      setTimeout(() => handleClose(), 600);
     } catch (err) {
-      setError(`Upload failed: ${(err as Error).message}`);
+      const message = (err as Error).message;
+      // Improve error messages for common failures
+      if (message.includes("Too short") || message.includes("little text")) {
+        setError(message);
+      } else if (sourceMode === "youtube" && message.includes("transcript")) {
+        setError(
+          "Could not fetch transcript. The video may have no captions available. Try a different video or use 'Paste text' instead."
+        );
+      } else if (sourceMode === "image" && message.includes("NO_TEXT_FOUND")) {
+        setError(
+          "No readable text could be extracted from this image. It may be blurry, contain only graphics, or the handwriting is not machine-readable."
+        );
+      } else {
+        setError(`${sourceMode === "youtube" ? "YouTube" : sourceMode === "audio" ? "Audio" : sourceMode === "image" ? "OCR" : "Import"} failed: ${message}`);
+      }
+      setProgressPhase(null);
     } finally {
       setLoading(false);
     }
@@ -170,201 +709,200 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
     e.preventDefault();
     setDragOver(false);
     const f = e.dataTransfer.files[0];
-    if (f) setFile(f);
+    if (f) {
+      setFile(f);
+      // Auto-detect source mode from file extension
+      const name = f.name.toLowerCase();
+      if (name.endsWith(".pdf")) setSourceMode("pdf");
+      else if (name.endsWith(".docx") || name.endsWith(".pptx")) setSourceMode("office");
+      else if (f.type.startsWith("image/")) setSourceMode("image");
+      else if (f.type.startsWith("audio/")) setSourceMode("audio");
+    }
   };
 
+  const buttonLabel = (() => {
+    if (loading) {
+      if (progressPhase === "extracting") return "Extracting...";
+      if (progressPhase === "transcribing") return "Transcribing...";
+      if (progressPhase === "indexing") return "Indexing...";
+      return "Saving...";
+    }
+    return "Add to Library";
+  })();
+
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-xs"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) handleClose();
-      }}
-    >
-      <div
-        className="w-full max-w-lg rounded-xl bg-white dark:bg-[#161618] border border-border dark:border-[#27272A] shadow-lg"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="upload-dialog-title"
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-border dark:border-[#27272A] px-6 py-4">
-          <h2
-            id="upload-dialog-title"
-            className="text-h3 text-text dark:text-[#FAFAFA]"
-          >
-            Add Document
-          </h2>
-          <button
-            onClick={handleClose}
-            className="rounded-md p-1.5 text-text-muted dark:text-[#71717A] hover:bg-bg-muted dark:hover:bg-[#1C1C1F] hover:text-text-secondary dark:hover:text-[#A1A1AA] transition-colors duration-150"
-            aria-label="Close"
-          >
-            <X className="h-5 w-5" />
-          </button>
+    <Dialog open={open} onClose={handleClose} title="Add Document" size="lg">
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Title */}
+        <Input
+          label="Title"
+          placeholder='e.g. "Lecture 3 – Linear Regression"'
+          value={title}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+            setTitle(e.target.value)
+          }
+          disabled={loading}
+        />
+
+        {/* Source tabs */}
+        <div className="flex flex-wrap gap-0 border-b border-border-hairline">
+          {SOURCE_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => {
+                setSourceMode(tab.id);
+                setFile(null);
+                setPastedText("");
+                setYoutubeUrl("");
+                setError(null);
+              }}
+              className={`relative px-3 py-2.5 text-label transition-colors duration-150 ${
+                sourceMode === tab.id
+                  ? "text-text"
+                  : "text-text-tertiary hover:text-text-secondary"
+              }`}
+              disabled={loading}
+            >
+              <span className="mr-1.5 inline-block">{tab.icon}</span>
+              {tab.label}
+              {sourceMode === tab.id && (
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-500" />
+              )}
+            </button>
+          ))}
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5 px-6 py-5">
-          {/* Title input */}
-          <Input
-            label="Title"
-            placeholder="e.g. Lecture 3 – Linear Regression"
-            value={title}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              setTitle(e.target.value)
-            }
-            disabled={loading}
+        {/* Source content */}
+        {sourceMode === "pdf" && (
+          <PdfTab
+            file={file}
+            dragOver={dragOver}
+            loading={loading}
+            onDrop={handleDrop}
+            onFileSelect={(f) => setFile(f)}
+            onClear={() => setFile(null)}
+            onDragOver={() => setDragOver(true)}
+            onDragLeave={() => setDragOver(false)}
           />
+        )}
+        {sourceMode === "text" && (
+          <TextTab
+            pastedText={pastedText}
+            loading={loading}
+            onChange={(t) => setPastedText(t)}
+          />
+        )}
+        {sourceMode === "youtube" && (
+          <YoutubeTab
+            youtubeUrl={youtubeUrl}
+            loading={loading}
+            onChange={(u) => setYoutubeUrl(u)}
+          />
+        )}
+        {sourceMode === "office" && (
+          <OfficeTab
+            file={file}
+            loading={loading}
+            onFileSelect={(f) => setFile(f)}
+            onClear={() => setFile(null)}
+          />
+        )}
+        {sourceMode === "image" && (
+          <ImageTab
+            file={file}
+            loading={loading}
+            onFileSelect={(f) => setFile(f)}
+            onClear={() => setFile(null)}
+          />
+        )}
+        {sourceMode === "audio" && (
+          <AudioTab
+            file={file}
+            loading={loading}
+            onFileSelect={(f) => setFile(f)}
+            onClear={() => setFile(null)}
+          />
+        )}
 
-          {/* Mode tabs */}
-          <div className="flex gap-0 border-b border-border dark:border-[#27272A]">
-            <button
-              type="button"
-              onClick={() => {
-                setMode("pdf");
-                setError(null);
-              }}
-              className={`relative px-4 py-2.5 text-label transition-colors duration-150 ${
-                mode === "pdf"
-                  ? "text-text dark:text-[#FAFAFA]"
-                  : "text-text-muted dark:text-[#71717A] hover:text-text-secondary dark:hover:text-[#A1A1AA]"
-              }`}
-              disabled={loading}
-            >
-              Upload PDF
-              {mode === "pdf" && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-500" />
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMode("text");
-                setError(null);
-              }}
-              className={`relative px-4 py-2.5 text-label transition-colors duration-150 ${
-                mode === "text"
-                  ? "text-text dark:text-[#FAFAFA]"
-                  : "text-text-muted dark:text-[#71717A] hover:text-text-secondary dark:hover:text-[#A1A1AA]"
-              }`}
-              disabled={loading}
-            >
-              Paste text
-              {mode === "text" && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-500" />
-              )}
-            </button>
-          </div>
-
-          {/* PDF dropzone */}
-          {mode === "pdf" && (
-            <div
-              onDragOver={(e) => {
-                e.preventDefault();
-                setDragOver(true);
-              }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              className={`flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 text-center transition-colors duration-150 ${
-                dragOver
-                  ? "border-brand-500 bg-brand-50 dark:bg-brand-950/20"
-                  : "border-border dark:border-[#27272A] bg-bg-subtle dark:bg-[#1C1C1F] hover:border-border-strong dark:hover:border-[#3F3F46]"
-              }`}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".pdf,application/pdf"
-                className="hidden"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                disabled={loading}
-              />
-              {file ? (
-                <div className="flex items-center gap-3 w-full justify-center">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-50 dark:bg-brand-950/20 text-brand-500">
-                    <FileText className="h-5 w-5" />
-                  </span>
-                  <div className="text-left min-w-0 max-w-[60%]">
-                    <p className="truncate text-label text-text dark:text-[#FAFAFA] font-medium">
-                      {file.name}
-                    </p>
-                    <p className="text-small text-text-muted dark:text-[#71717A]">
-                      {(file.size / 1024).toFixed(0)} KB
-                    </p>
-                  </div>
-                  {!loading && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setFile(null);
-                      }}
-                      className="rounded-md p-1.5 text-text-muted dark:text-[#71717A] hover:bg-bg-muted dark:hover:bg-[#1C1C1F] hover:text-text-secondary dark:hover:text-[#A1A1AA] transition-colors duration-150"
-                    >
-                      <FileX className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <>
-                  <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-bg-muted dark:bg-[#1C1C1F] text-text-muted dark:text-[#71717A]">
-                    <Upload className="h-6 w-6" />
-                  </span>
-                  <p className="text-label text-text-secondary dark:text-[#A1A1AA]">
-                    Drop a PDF here, or click to browse
-                  </p>
-                  <p className="mt-1 text-small text-text-muted dark:text-[#71717A]">
-                    PDF files only
-                  </p>
-                </>
-              )}
+        {/* Course assignment */}
+        {!loading && userCourses.length > 0 && (
+          <div>
+            <label className="mb-1.5 block text-small font-medium text-text-secondary">
+              Assign to course{" "}
+              <span className="text-text-muted">(optional)</span>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {userCourses.map((course) => (
+                <button
+                  key={course.id}
+                  type="button"
+                  onClick={() =>
+                    setSelectedCourseId(
+                      selectedCourseId === course.id ? null : course.id
+                    )
+                  }
+                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-label transition-colors ${
+                    selectedCourseId === course.id
+                      ? "bg-brand-500 text-white"
+                      : "border border-border bg-surface text-text-secondary hover:bg-surface-subtle"
+                  }`}
+                >
+                  <BookMarked className="h-3.5 w-3.5" />
+                  {course.title}
+                </button>
+              ))}
             </div>
-          )}
-
-          {/* Text textarea */}
-          {mode === "text" && (
-            <textarea
-              value={pastedText}
-              onChange={(e) => setPastedText(e.target.value)}
-              placeholder="Paste your lecture notes here..."
-              rows={8}
-              className="w-full resize-none rounded-md border border-border dark:border-[#27272A] bg-white dark:bg-[#1C1C1F] px-3 py-2.5 text-body text-text dark:text-[#FAFAFA] placeholder-text-muted dark:placeholder-[#71717A] transition-colors duration-150 ease-out focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:opacity-50 min-h-[120px]"
-              disabled={loading}
-            />
-          )}
-
-          {/* Error */}
-          {error && (
-            <div className="rounded-lg bg-rose-50 dark:bg-rose-950/20 px-4 py-3 text-small text-rose-700 dark:text-rose-400 border border-rose-100 dark:border-rose-900/40">
-              {error}
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className="flex justify-end gap-3 border-t border-border dark:border-[#27272A] pt-4">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={handleClose}
-              disabled={loading}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              isLoading={loading || indexing}
-              disabled={loading || indexing}
-            >
-              {indexing
-                ? "Indexing..."
-                : loading
-                  ? "Saving..."
-                  : "Add to Library"}
-            </Button>
           </div>
-        </form>
-      </div>
-    </div>
+        )}
+
+        {/* Progress bar */}
+        {progressPhase && progressPhase !== "done" && (
+          <ProgressBar
+            phase={progressPhase}
+            customLabel={
+              progressPhase === "extracting"
+                ? sourceMode === "youtube"
+                  ? "Fetching transcript..."
+                  : sourceMode === "pdf"
+                    ? "Reading PDF..."
+                    : sourceMode === "office"
+                      ? "Extracting text..."
+                      : "Processing image..."
+                : progressPhase === "transcribing"
+                  ? "Transcribing audio..."
+                  : undefined
+            }
+          />
+        )}
+
+        {/* Error */}
+        {error && (
+          <div className="rounded-lg border border-error/30 bg-danger-subtle px-4 py-3 text-small text-danger-on-subtle">
+            <div className="flex items-start gap-2">
+              <span className="mt-0.5 shrink-0 text-danger">⚠</span>
+              <span>{error}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex justify-end gap-3 border-t border-border-hairline pt-4">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={handleClose}
+            disabled={loading}
+          >
+            Cancel
+          </Button>
+          <Button type="submit" isLoading={loading} disabled={loading}>
+            {buttonLabel}
+          </Button>
+        </div>
+      </form>
+    </Dialog>
   );
 }
+
 export default UploadDialog;

@@ -16,7 +16,7 @@ export function GlobalSearch({ open, onClose }: Props) {
   const [error, setError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   useEffect(() => {
     if (open) {
@@ -63,7 +63,7 @@ export function GlobalSearch({ open, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]">
       <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-2xl rounded-xl border border-border bg-white shadow-2xl">
+      <div className="relative z-10 w-full max-w-2xl rounded-xl border border-border bg-surface-elevated elevated-4">
         {/* Search input */}
         <div className="flex items-center gap-3 border-b border-border px-5 py-4">
           <Search className="h-5 w-5 text-text-muted shrink-0" />
@@ -110,7 +110,7 @@ export function GlobalSearch({ open, onClose }: Props) {
                       {doc.documentTitle}
                     </span>
                     <span className="text-caption text-text-muted shrink-0">
-                      {Math.round(doc.maxSimilarity * 100)}% match
+                      {doc.chunks.length > 0 ? Math.round(doc.chunks[0].similarity * 100) : 0}% match
                     </span>
                   </button>
 

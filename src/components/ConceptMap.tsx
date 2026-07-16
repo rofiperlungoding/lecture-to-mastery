@@ -9,8 +9,8 @@ interface LayoutNode {
 }
 
 interface LayoutEdge {
-  from: string
-  to: string
+  source: string
+  target: string
   label: string
 }
 
@@ -32,8 +32,8 @@ function computeLayout(data: ConceptMapData, width: number, height: number): { n
   })
 
   const edges: LayoutEdge[] = data.edges.map((e) => ({
-    from: e.from,
-    to: e.to,
+    source: e.source,
+    target: e.target,
     label: e.label,
   }))
 
@@ -82,10 +82,6 @@ export function ConceptMap({ data, className = '' }: ConceptMapProps) {
     )
   }
 
-  const padding = 20
-  const svgWidth = dimensions.width - padding * 2
-  const svgHeight = dimensions.height - padding * 2
-
   return (
     <div ref={containerRef} className={`w-full ${className}`} style={{ minHeight: 300 }}>
       <svg
@@ -102,8 +98,8 @@ export function ConceptMap({ data, className = '' }: ConceptMapProps) {
 
         {/* Edges */}
         {layout.edges.map((edge, i) => {
-          const from = nodeMap.get(edge.from)
-          const to = nodeMap.get(edge.to)
+          const from = nodeMap.get(edge.source)
+          const to = nodeMap.get(edge.target)
           if (!from || !to) return null
 
           const dx = to.x - from.x

@@ -9,10 +9,20 @@ import { Route as LoginRoute } from './routes/login'
 import { Route as SettingsRoute } from './routes/settings'
 import { Route as ProgressRoute } from './routes/progress'
 import { Route as PrintRoute } from './routes/print.$docId'
+import { Route as CoursePrintRoute } from './routes/print.$courseId'
+import { Route as StyleguideRoute } from './routes/styleguide'
+import { Route as AboutRoute } from './routes/about'
+import { Route as HealthRoute } from './routes/health'
+import { Route as CourseRoute } from './routes/course.$courseId'
+import { Route as ReviewRoute } from './routes/review'
+import { Route as ProfileRoute } from './routes/u.$username'
+import { Route as AchievementShareRoute } from './routes/u.$username.achievement.$achievementId'
 import { useAuthStore } from './stores/useAuthStore'
+import { initErrorMonitor } from './lib/errorMonitor'
+import { initLocale } from './lib/i18n'
 import './styles/globals.css'
 
-const routeTree = RootRoute.addChildren([IndexRoute, DocRoute, LoginRoute, SettingsRoute, ProgressRoute, CorpusChatRoute, PrintRoute])
+const routeTree = RootRoute.addChildren([IndexRoute, DocRoute, LoginRoute, SettingsRoute, ProgressRoute, CorpusChatRoute, PrintRoute, CoursePrintRoute, StyleguideRoute, AboutRoute, HealthRoute, CourseRoute, ReviewRoute, ProfileRoute, AchievementShareRoute])
 
 const router = createRouter({
   routeTree,
@@ -31,6 +41,12 @@ declare module '@tanstack/react-router' {
 const rootElement = document.getElementById('root')!
 
 async function bootstrap() {
+  // Initialize i18n locale from localStorage before render
+  initLocale()
+
+  // Initialize client-side error monitoring (window.onerror + onunhandledrejection)
+  initErrorMonitor()
+
   const authStore = useAuthStore.getState()
   await authStore.initialize()
 

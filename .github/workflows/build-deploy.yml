@@ -28,6 +28,9 @@ jobs:
       - name: Test (edge functions)
         run: npx vitest run
 
+      - name: Test (frontend unit + component)
+        run: npm run test:unit
+
       - name: Build
         run: npm run build
 

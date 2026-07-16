@@ -1,13 +1,19 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { chatComplete } from '../shared/llm.ts'
 
-const ALLOWED_ORIGINS = [
-  'http://localhost:5173',
-  'http://localhost:4173',
-  'https://30031c7a.lecture-to-mastery.pages.dev',
-]
+function isAllowedOrigin(origin: string | null): boolean {
+  if (!origin) return false
+  try {
+    const url = new URL(origin)
+    if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') return true
+    if (url.hostname.endsWith('.lecture-to-mastery.pages.dev') || url.hostname === 'lecture-to-mastery.pages.dev') return true
+    if (url.hostname.endsWith('.netlify.app')) return true
+    return false
+  } catch { return false }
+}
 
 function corsHeaders(origin: string | null) {
-  const allowOrigin = origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]
+  const allowOrigin = isAllowedOrigin(origin) ? origin : 'http://localhost:5173'
   return {
     'Access-Control-Allow-Origin': allowOrigin,
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -36,7 +42,7 @@ async function checkRateLimit(
   return true
 }
 
-interface RawQuestion { question: string; options: string[]; correct_index: number; explanation: string }
+interface RawQuestion { question: string; options: string[]; correct_index: number; explanation: string; concept?: string }
 
 function validateQuestion(q: unknown): q is RawQuestion {
   const obj = q as Record<string, unknown>
@@ -47,21 +53,6 @@ function validateQuestion(q: unknown): q is RawQuestion {
   if (typeof obj.correct_index !== 'number' || !Number.isInteger(obj.correct_index)) return false
   if (obj.correct_index < 0 || obj.correct_index > 3) return false
   return true
-}
-
-async function callMistral(messages: { role: string; content: string }[], apiKey: string): Promise<{ questions: RawQuestion[] }> {
-  const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: 'mistral-small-latest', messages, temperature: 0.2, response_format: { type: 'json_object' } }),
-  })
-  if (!response.ok) { const body = await response.text(); throw new Error(`Mistral API error: ${response.status} ${body}`) }
-  const result = await response.json()
-  const content = result.choices?.[0]?.message?.content ?? ''
-  let parsed: { questions: unknown[] }
-  try { parsed = JSON.parse(content) } catch { throw new Error('Failed to parse Mistral response as JSON') }
-  if (!Array.isArray(parsed.questions)) throw new Error('Response missing "questions" array')
-  return parsed as { questions: RawQuestion[] }
 }
 
 Deno.serve(async (req) => {
@@ -77,8 +68,7 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
-    const mistralKey = Deno.env.get('MISTRAL_API_KEY')!
-    if (!supabaseUrl || !supabaseAnonKey || !mistralKey) throw new Error('Missing required environment variables')
+    if (!supabaseUrl || !supabaseAnonKey) throw new Error('Missing required environment variables')
 
     const authHeader = req.headers.get('Authorization') || ''
     const jwt = authHeader.replace('Bearer ', '')
@@ -96,6 +86,13 @@ Deno.serve(async (req) => {
     if (error) throw error
     if (!chunks || chunks.length === 0) throw new Error('No chunks found for this document')
 
+    const { data: doc } = await supabase
+      .from('documents')
+      .select('language')
+      .eq('id', documentId)
+      .single()
+    const language: string = doc?.language || 'en'
+
     const maxSamples = 12
     let sampled: { content: string }[]
     if (chunks.length <= maxSamples) { sampled = chunks } else {
@@ -105,22 +102,28 @@ Deno.serve(async (req) => {
     const context = sampled.map((c) => c.content).join('\n\n')
 
     const buildMessages = (qCount: number, extra?: string) => [
-      { role: 'system' as const, content: 'You are a precise quiz generator. Output ONLY valid JSON with this exact shape — no other text:\n{\n  "questions": [\n    {\n      "question": "question text",\n      "options": ["A", "B", "C", "D"],\n      "correct_index": 0,\n      "explanation": "why this answer is correct"\n    }\n  ]\n}\n\nGenerate exactly ' + qCount + ' questions based on the provided document. Each question MUST have exactly 4 options (A/B/C/D). correct_index must be 0-3. All strings must be non-empty.\n' + (extra ?? '') },
+      { role: 'system' as const, content: 'You are a precise quiz generator. Output ONLY valid JSON with this exact shape — no other text:\n{\n  "questions": [\n    {\n      "question": "question text",\n      "options": ["A", "B", "C", "D"],\n      "correct_index": 0,\n      "explanation": "why this answer is correct",\n      "concept": "short topic label (1-4 words)"\n    }\n  ]\n}\n\nGenerate exactly ' + qCount + ' questions based on the provided document. Each question MUST have exactly 4 options (A/B/C/D). correct_index must be 0-3. All strings must be non-empty. Include a "concept" field for each question — a short 1-4 word topic label drawn from the document (e.g., "Big-O notation", "Array access", "Linked list insertion"). The concept field is required.\n\nIMPORTANT: Write ALL questions, options, explanations, and concept labels in the language corresponding to code "' + language + '".\n' + (extra ?? '') },
       { role: 'user' as const, content: `Generate ${qCount} quiz questions from:\n\n${context}` },
     ]
 
     let validQuestions: RawQuestion[] = []
-    const { questions: raw1 } = await callMistral(buildMessages(count), mistralKey)
-    validQuestions = raw1.filter(validateQuestion)
+    const { content: raw1 } = await chatComplete({ messages: buildMessages(count), temperature: 0.2, jsonMode: true })
+    const parsed1 = JSON.parse(raw1)
+    if (!Array.isArray(parsed1.questions)) throw new Error('Response missing "questions" array')
+    validQuestions = parsed1.questions.filter(validateQuestion)
 
     if (validQuestions.length < count) {
       const shortfall = count - validQuestions.length
-      try { const { questions: raw2 } = await callMistral(buildMessages(shortfall, `Previously generated ${validQuestions.length} valid questions. Generate ${shortfall} more.`), mistralKey); validQuestions.push(...raw2.filter(validateQuestion)) } catch {}
+      try {
+        const { content: raw2 } = await chatComplete({ messages: buildMessages(shortfall, `Previously generated ${validQuestions.length} valid questions. Generate ${shortfall} more.`), temperature: 0.2, jsonMode: true })
+        const parsed2 = JSON.parse(raw2)
+        if (Array.isArray(parsed2.questions)) validQuestions.push(...parsed2.questions.filter(validateQuestion))
+      } catch {}
     }
 
     if (validQuestions.length === 0) throw new Error('Failed to generate any valid quiz questions after retry')
 
-    const rows = validQuestions.map((q) => ({ document_id: documentId, question: q.question.trim(), options: q.options, correct_index: q.correct_index, explanation: q.explanation.trim() }))
+    const rows = validQuestions.map((q) => ({ document_id: documentId, question: q.question.trim(), options: q.options, correct_index: q.correct_index, explanation: q.explanation.trim(), concept: (q.concept || '').trim().slice(0, 100) }))
 
     await supabase.from('quiz_questions').delete().eq('document_id', documentId)
     const { error: insertErr } = await supabase.from('quiz_questions').insert(rows)

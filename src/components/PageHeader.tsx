@@ -10,11 +10,11 @@ export function PageHeader({ title, meta, actions }: PageHeaderProps) {
   return (
     <div className="flex items-center justify-between gap-6">
       <div className="min-w-0">
-        <h1 className="text-pageTitle text-text dark:text-[#FAFAFA] truncate">
+        <h1 className="text-pageTitle text-text truncate">
           {title}
         </h1>
         {meta && (
-          <p className="mt-1 text-body text-text-secondary dark:text-[#A1A1AA]">
+          <p className="mt-1 text-body text-text-secondary">
             {meta}
           </p>
         )}

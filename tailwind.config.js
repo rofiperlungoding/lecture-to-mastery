@@ -5,93 +5,294 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["Inter", "system-ui", "-apple-system", "sans-serif"],
-      },
-      fontWeight: {
-        700: "700",
+        sans: "var(--font-sans)",
+        mono: "var(--font-mono)",
       },
       fontSize: {
-        pageTitle: [
-          "28px",
-          { lineHeight: "34px", letterSpacing: "-0.02em", fontWeight: "700" },
-        ],
+        /* ── Apple HIG-inspired role-based type scale ── */
         display: [
-          "30px",
-          { lineHeight: "36px", letterSpacing: "-0.02em", fontWeight: "600" },
+          "var(--fs-display)",
+          {
+            lineHeight: "var(--lh-display)",
+            letterSpacing: "var(--track-display)",
+            fontWeight: "var(--fw-display)",
+          },
         ],
-        h2: [
-          "20px",
-          { lineHeight: "28px", letterSpacing: "-0.01em", fontWeight: "600" },
+        "title-1": [
+          "var(--fs-title-1)",
+          {
+            lineHeight: "var(--lh-title-1)",
+            letterSpacing: "var(--track-title-1)",
+            fontWeight: "var(--fw-title-1)",
+          },
         ],
-        h3: [
-          "16px",
-          { lineHeight: "24px", letterSpacing: "0", fontWeight: "600" },
+        "title-2": [
+          "var(--fs-title-2)",
+          {
+            lineHeight: "var(--lh-title-2)",
+            letterSpacing: "var(--track-title-2)",
+            fontWeight: "var(--fw-title-2)",
+          },
         ],
-        sectionLabel: [
-          "12px",
-          { lineHeight: "16px", letterSpacing: "0.06em", fontWeight: "600" },
+        "title-3": [
+          "var(--fs-title-3)",
+          {
+            lineHeight: "var(--lh-title-3)",
+            letterSpacing: "var(--track-title-3)",
+            fontWeight: "var(--fw-title-3)",
+          },
         ],
         body: [
-          "14px",
-          { lineHeight: "22px", letterSpacing: "0", fontWeight: "400" },
+          "var(--fs-body)",
+          {
+            lineHeight: "var(--lh-body)",
+            letterSpacing: "var(--track-body)",
+            fontWeight: "var(--fw-body)",
+          },
         ],
-        label: [
-          "14px",
-          { lineHeight: "20px", letterSpacing: "0", fontWeight: "500" },
+        callout: [
+          "var(--fs-callout)",
+          {
+            lineHeight: "var(--lh-callout)",
+            letterSpacing: "var(--track-callout)",
+            fontWeight: "var(--fw-callout)",
+          },
         ],
-        small: [
-          "13px",
-          { lineHeight: "18px", letterSpacing: "0", fontWeight: "400" },
+        subhead: [
+          "var(--fs-subhead)",
+          {
+            lineHeight: "var(--lh-subhead)",
+            letterSpacing: "var(--track-subhead)",
+            fontWeight: "var(--fw-subhead)",
+          },
+        ],
+        footnote: [
+          "var(--fs-footnote)",
+          {
+            lineHeight: "var(--lh-footnote)",
+            letterSpacing: "var(--track-footnote)",
+            fontWeight: "var(--fw-footnote)",
+          },
         ],
         caption: [
-          "12px",
-          { lineHeight: "16px", letterSpacing: "0", fontWeight: "500" },
+          "var(--fs-caption)",
+          {
+            lineHeight: "var(--lh-caption)",
+            letterSpacing: "var(--track-caption)",
+            fontWeight: "var(--fw-caption)",
+          },
         ],
+        /* ── Legacy aliases (map to new roles) ── */
+        pageTitle: [
+          "var(--fs-title-1)",
+          {
+            lineHeight: "var(--lh-title-1)",
+            letterSpacing: "var(--track-title-1)",
+            fontWeight: "var(--fw-title-1)",
+          },
+        ],
+        h2: [
+          "var(--fs-title-2)",
+          {
+            lineHeight: "var(--lh-title-2)",
+            letterSpacing: "var(--track-title-2)",
+            fontWeight: "var(--fw-title-2)",
+          },
+        ],
+        h3: [
+          "var(--fs-title-3)",
+          {
+            lineHeight: "var(--lh-title-3)",
+            letterSpacing: "var(--track-title-3)",
+            fontWeight: "var(--fw-title-3)",
+          },
+        ],
+        sectionLabel: ["var(--fs-caption)", {
+          lineHeight: "var(--lh-caption)",
+          letterSpacing: "var(--track-caption)",
+          fontWeight: "var(--fw-caption)",
+        }],
+        label: ["var(--fs-subhead)", {
+          lineHeight: "var(--lh-subhead)",
+          letterSpacing: "var(--track-subhead)",
+          fontWeight: "600",
+        }],
+        small: ["var(--fs-footnote)", {
+          lineHeight: "var(--lh-footnote)",
+          letterSpacing: "var(--track-footnote)",
+          fontWeight: "var(--fw-footnote)",
+        }],
       },
       colors: {
-        canvas: "#F5F5F6",
+        // ── Surface / background ──
+        canvas: "var(--color-bg)",
         surface: {
-          DEFAULT: "#FFFFFF",
-          subtle: "#FAFAFA",
-          muted: "#F1F1F3",
+          DEFAULT: "var(--color-surface)",
+          subtle: "var(--color-surface-subtle)",
+          muted: "var(--color-surface-muted)",
+          elevated: "var(--color-surface-elevated)",
         },
         bg: {
-          base: "#FFFFFF",
-          subtle: "#FAFAFA",
-          muted: "#F1F1F3",
+          base: "var(--color-surface)",
+          subtle: "var(--color-surface-subtle)",
+          muted: "var(--color-surface-muted)",
         },
+        // ── Border ──
         border: {
-          DEFAULT: "#E4E4E7",
-          strong: "#D4D4D8",
+          DEFAULT: "var(--color-border)",
+          strong: "var(--color-border-strong)",
+          hairline: "var(--color-border-hairline)",
         },
+        // ── Text ──
         text: {
-          DEFAULT: "#0A0A0A",
-          secondary: "#3F3F46",
-          muted: "#71717A",
-          inverse: "#FFFFFF",
+          DEFAULT: "var(--color-text-primary)",
+          secondary: "var(--color-text-secondary)",
+          muted: "var(--color-text-tertiary)",
+          tertiary: "var(--color-text-tertiary)",
+          inverse: "var(--color-text-inverse)",
         },
+        // ── Accent / brand ──
         brand: {
-          50: "#EEF2FF",
-          100: "#E0E7FF",
-          500: "#375DFB",
-          600: "#2B4ACB",
-          700: "#2438A6",
+          50: "var(--color-accent-subtle)",
+          100: "var(--color-accent-100)",
+          500: "var(--color-accent)",
+          600: "var(--color-accent-hover)",
+          700: "var(--color-accent-pressed)",
         },
-        success: "#1FC16B",
-        warning: "#F6B51E",
-        error: "#FB3748",
+        // ── Semantic ──
+        success: {
+          DEFAULT: "var(--color-success)",
+          subtle: "var(--color-success-subtle)",
+          onSubtle: "var(--color-success-on-subtle)",
+        },
+        warning: {
+          DEFAULT: "var(--color-warning)",
+          subtle: "var(--color-warning-subtle)",
+          onSubtle: "var(--color-warning-on-subtle)",
+        },
+        error: {
+          DEFAULT: "var(--color-danger)",
+          subtle: "var(--color-danger-subtle)",
+          onSubtle: "var(--color-danger-on-subtle)",
+        },
+        danger: {
+          DEFAULT: "var(--color-danger)",
+          subtle: "var(--color-danger-subtle)",
+          onSubtle: "var(--color-danger-on-subtle)",
+        },
+        // ── Mastery ──
+        mastery: {
+          low: "var(--color-mastery-low)",
+          mid: "var(--color-mastery-mid)",
+          high: "var(--color-mastery-high)",
+        },
+        // ── Legacy shortcuts (mapped to tokens; unused legacy shades fall back to Tailwind defaults) ──
+        emerald: {
+          50: "var(--color-success-subtle)",
+          500: "var(--color-success)",
+          700: "var(--color-success-on-subtle)",
+        },
+        amber: {
+          50: "var(--color-warning-subtle)",
+          500: "var(--color-warning)",
+          700: "var(--color-warning-on-subtle)",
+          800: "var(--color-warning-on-subtle)",
+        },
+        rose: {
+          50: "var(--color-danger-subtle)",
+          500: "var(--color-danger)",
+          600: "var(--color-danger)",
+          700: "var(--color-danger-on-subtle)",
+        },
+        green: {
+          50: "var(--color-success-subtle)",
+          400: "var(--color-success)",
+          500: "var(--color-success)",
+          700: "var(--color-success-on-subtle)",
+        },
+      },
+      spacing: {
+        // 8pt grid tokens — additive to Tailwind defaults
+        1: "var(--space-1)",
+        2: "var(--space-2)",
+        3: "var(--space-3)",
+        4: "var(--space-4)",
+        5: "var(--space-5)",
+        6: "var(--space-6)",
+        8: "var(--space-8)",
+        10: "var(--space-10)",
+        12: "var(--space-12)",
+        16: "var(--space-16)",
+        // Vertical rhythm
+        "rhythm-1": "var(--rhythm-1)",
+        "rhythm-2": "var(--rhythm-2)",
+        "rhythm-3": "var(--rhythm-3)",
+        "rhythm-4": "var(--rhythm-4)",
+        "rhythm-5": "var(--rhythm-5)",
+        "rhythm-6": "var(--rhythm-6)",
+        "rhythm-7": "var(--rhythm-7)",
+      },
+      width: {
+        content: "var(--width-content)",
+        reading: "var(--width-reading)",
+        narrow: "var(--width-narrow)",
+      },
+      maxWidth: {
+        content: "var(--width-content)",
+        reading: "var(--width-reading)",
+        narrow: "var(--width-narrow)",
+      },
+      height: {
+        "control-sm": "var(--control-sm)",
+        "control-md": "var(--control-md)",
+        "control-lg": "var(--control-lg)",
+        "control-xl": "var(--control-xl)",
+      },
+      minHeight: {
+        touch: "var(--control-lg)",
+      },
+      padding: {
+        "page-mobile": "var(--pad-page-mobile)",
+        "page-tablet": "var(--pad-page-tablet)",
+        "page-desktop": "var(--pad-page-desktop)",
       },
       borderRadius: {
-        sm: "8px",
-        md: "10px",
-        lg: "12px",
-        xl: "16px",
+        sm: "var(--radius-sm)",
+        md: "var(--radius-md)",
+        lg: "var(--radius-lg)",
+        xl: "var(--radius-xl)",
+        full: "var(--radius-full)",
       },
       boxShadow: {
-        xs: "0 1px 2px 0 rgba(16,24,40,0.06)",
-        sm: "0 2px 4px -1px rgba(16,24,40,0.08), 0 1px 2px -1px rgba(16,24,40,0.06)",
-        md: "0 8px 16px -4px rgba(16,24,40,0.10), 0 3px 6px -3px rgba(16,24,40,0.08)",
-        lg: "0 16px 32px -8px rgba(16,24,40,0.12), 0 6px 12px -6px rgba(16,24,40,0.06)",
+        xs: "var(--shadow-1)",
+        sm: "var(--shadow-2)",
+        md: "var(--shadow-3)",
+        lg: "var(--shadow-4)",
+        "1": "var(--shadow-1)",
+        "2": "var(--shadow-2)",
+        "3": "var(--shadow-3)",
+        "4": "var(--shadow-4)",
+      },
+      transitionTimingFunction: {
+        standard: "var(--ease-standard)",
+        emphasized: "var(--ease-emphasized)",
+        spring: "var(--ease-spring)",
+        // Override Tailwind defaults
+        DEFAULT: "var(--ease-standard)",
+        out: "var(--ease-standard)",
+        "in-out": "var(--ease-standard)",
+      },
+      transitionDuration: {
+        fast: "var(--dur-fast)",
+        base: "var(--dur-base)",
+        slow: "var(--dur-slow)",
+      },
+      zIndex: {
+        base: "var(--z-base)",
+        sticky: "var(--z-sticky)",
+        dropdown: "var(--z-dropdown)",
+        dialog: "var(--z-dialog)",
+        toast: "var(--z-toast)",
       },
     },
   },

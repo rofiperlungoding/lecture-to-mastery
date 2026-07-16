@@ -1,140 +1,121 @@
-# Deploy Guide — Lecture-to-Mastery
+# Deployment Guide — Lecture to Mastery
 
-## Prerequisites
+## Production URL
 
-- Supabase project `xjsukouwsymcqxfhajyv` (already linked via `supabase link`)
-- Cloudflare account
-- Mistral API key
-- Node.js 20+
+**Live site:** [https://papaya-dieffenbachia-d3871b.netlify.app](https://papaya-dieffenbachia-d3871b.netlify.app)
 
 ---
 
-## 1. Set Supabase Secrets
+## Build
 
 ```bash
-cd lecture-to-mastery
-npx supabase secrets set MISTRAL_API_KEY=<your-mistral-api-key>
-```
-
-`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are auto-injected for hosted functions.
-
-## 2. Deploy Edge Functions
-
-```bash
-# Deploy all 4 functions
-npx supabase functions deploy embed-document
-npx supabase functions deploy rag-query
-npx supabase functions deploy summarize-document
-npx supabase functions deploy generate-quiz
-```
-
-Note: `generate-flashcards` is not yet built (Step 8 was deferred). Skip it.
-
-Verify each deployed:
-```bash
-npx supabase functions list
-```
-
-## 3. Deploy Frontend to Cloudflare Pages
-
-### Build
-```bash
+npm ci
 npm run build
-# Output: dist/
+# Output → dist/
 ```
 
-### Via Cloudflare Dashboard
-1. Go to [Cloudflare Dashboard](https://dash.cloudflare.com) → Workers & Pages → Create → Pages
-2. Connect your Git repo or upload `dist/` directly
-3. Build command: `npm run build`
-4. Output directory: `dist`
-5. Add environment variables:
+Build command (`npm run build`) runs `tsc -b && vite build`.
+
+---
+
+## Deploy
+
+### Option A: Git-based continuous deploy (recommended)
+
+Every push to `main` auto-deploys. PRs get unique Deploy Preview URLs.
+
+**Setup** (one-time):
+1. [Netlify Dashboard](https://app.netlify.com) → **Add new site → Import existing project → Deploy with GitHub**
+2. Select `rofiperlungoding/lecture-to-mastery`
+3. Build settings auto-detect from `netlify.toml` ✅
+4. Set these environment variables in **Site settings → Environment variables**:
    - `VITE_SUPABASE_URL` = `https://xjsukouwsymcqxfhajyv.supabase.co`
    - `VITE_SUPABASE_ANON_KEY` = `<your-anon-key>`
-6. Deploy
+5. Deploy
 
-### Via Wrangler CLI
+### Option B: CLI deploy
+
 ```bash
-npm install -g wrangler
-wrangler pages deploy dist/ --project-name lecture-to-mastery
-wrangler pages secret put VITE_SUPABASE_URL
-wrangler pages secret put VITE_SUPABASE_ANON_KEY
+npx netlify deploy --build          # Draft (preview URL)
+npx netlify deploy --build --prod    # Production
 ```
 
 ---
 
-## Pre-Demo Quick Check
+## Environment Variables
 
-Run through this critical path before any demo:
-
-```
-1. LOAD DEMO
-   □ Click "Load Demo" button
-   □ Toast: "Demo document added! Indexing in progress..."
-   □ Card appears: "Data Structures: Arrays, Linked Lists & Big-O"
-   □ Wait ~15s for indexing to finish (embedding all chunks)
-
-2. SUMMARY
-   □ Click document card → workspace opens
-   □ Summary tab auto-loads with TL;DR, Key Points, Key Terms
-   □ Click "Regenerate" → new summary loads
-
-3. QUIZ
-   □ Switch to Quiz tab
-   □ Click "Generate Quiz" → loading → 8 questions appear
-   □ Select answer → Submit → correct/incorrect + explanation shown
-   □ Click through all questions → Score screen with Retake/Regenerate
-
-4. CHAT (RAG)
-   □ Switch to Chat tab
-   □ Ask "What is Big-O notation?" → answer with source citations
-   □ Ask "What is the capital of France?" → "I don't know based on this document."
-   □ Error state: type a query then disconnect → friendly message + Retry button
-```
+| Variable | Set Where | When Changed |
+|---|---|---|
+| `VITE_SUPABASE_URL` | Netlify UI/CLI | Requires redeploy (embedded at build time) |
+| `VITE_SUPABASE_ANON_KEY` | Netlify UI/CLI | Requires redeploy (embedded at build time) |
+| `MISTRAL_API_KEY` | ❌ NOT on Netlify — set via `supabase secrets set` | Supabase only |
+| `SUPABASE_SERVICE_ROLE_KEY` | ❌ NOT on Netlify — auto-injected by Supabase | Supabase only |
 
 ---
 
-## Full Smoke-Test Checklist
+## Rollback Playbook
 
-Open the deployed URL (or http://localhost:5173 locally).
+### Symptom
+A deploy breaks the app (blank page, JS error, API calls failing).
 
-Open the deployed URL (or http://localhost:5173 locally).
+### Recovery (30 seconds)
 
-### 1. Demo data ingestion
-- [ ] Click **"Load Demo"** button on Library page
-- [ ] Toast appears: "Demo document added! Indexing in progress..."
-- [ ] Document card appears in the grid titled "Data Structures: Arrays, Linked Lists & Big-O"
-- [ ] Wait ~10-15 seconds for indexing to finish
+1. Go to **Netlify Dashboard → Deploys** tab
+   → [https://app.netlify.com/sites/papaya-dieffenbachia-d3871b/deploys](https://app.netlify.com/sites/papaya-dieffenbachia-d3871b/deploys)
 
-### 2. Summary tab
-- [ ] Click the document card → opens workspace
-- [ ] **Summary** tab loads automatically
-- [ ] TL;DR callout card visible with 1-2 sentence summary
-- [ ] Key Points checklist (3-7 items) visible
-- [ ] Key Terms glossary grid (2+) visible
-- [ ] "Regenerate" button works
+2. Find the **last known-good deploy** (green "Published" badge)
 
-### 3. Quiz tab
-- [ ] Click **Quiz** tab
-- [ ] Click **"Generate Quiz"** → loading state → questions appear
-- [ ] Answer a question → click **Submit Answer** → correct/incorrect shown + explanation
-- [ ] Click **Next Question** → progress bar advances
-- [ ] Complete all questions → score screen appears
-- [ ] **Retake** resets quiz state (same questions)
-- [ ] **Regenerate** creates new questions
+3. Click the three dots (`⋮`) on the right → **Publish deploy**
 
-### 4. Chat tab (RAG)
-- [ ] Click **Chat** tab
-- [ ] Type "What is Big-O notation?" → press Enter
-- [ ] "Thinking…" indicator → answer appears
-- [ ] Source citations (small cards with chunk index + snippet) visible beneath answer
-- [ ] Ask "What is the difference between arrays and linked lists?" → answer grounded in document
-- [ ] Ask "What is the capital of France?" → "I don't know based on this document."
+   Or click into the deploy → **Publish deploy** button in the top-right
 
-### 5. General UX
-- [ ] Toast notifications appear on success/error
-- [ ] Loading spinners show during async operations
-- [ ] Error states show friendly messages + Retry button
-- [ ] Sidebar navigation works (Library link)
-- [ ] Mobile responsive: sidebar collapses with hamburger menu
-- [ ] 360px viewport: all content visible, no overflow
+4. ✅ **Site is restored in ~5 seconds.** The old JS/CSS/assets were already cached on the CDN — only `index.html` refreshes.
+
+### Prevention: Keep auto-publish off
+
+When making risky changes:
+1. Enable **Deploy context → Branch `main` → Deploy log → "Stop auto publishing"**
+2. Deploy to a preview branch first
+3. Only promote to production after smoke-test passes
+
+### Rollback: What to expect
+
+- **index.html** reverts instantly — users get the old page on next load
+- **JS/CSS/assets** were already cached (immutable, 1 year) on the CDN from the good deploy
+- **Supabase edge functions** are NOT reverted — roll them separately if needed:
+  ```bash
+  supabase functions deploy <function-name>  # from a git checkout of the working commit
+  ```
+- **Database** is NOT affected — only frontend code is rolled back
+
+---
+
+## CORS
+
+Edge functions allowlist:
+- `*.netlify.app` (production + deploy previews)
+- `*.lecture-to-mastery.pages.dev` (Cloudflare Workers fallback)
+- `localhost:5173` (local development)
+- `localhost:54321` (local Supabase)
+- `lecture-to-mastery.local` (local preview)
+
+If adding a staging domain, add it to `isAllowedOrigin()` in each edge function.
+
+---
+
+## Verify Deploy
+
+```bash
+# Check HTTP status
+curl -s -o /dev/null -w "%{http_code}" https://papaya-dieffenbachia-d3871b.netlify.app/
+
+# Verify SPA routing (must return 200, not 404)
+curl -s -o /dev/null -w "%{http_code}" https://papaya-dieffenbachia-d3871b.netlify.app/doc/test-id
+
+# Check cache headers
+curl -sI https://papaya-dieffenbachia-d3871b.netlify.app/ | grep -i cache
+curl -sI https://papaya-dieffenbachia-d3871b.netlify.app/assets/ | grep -i cache
+
+# Check security headers
+curl -sI https://papaya-dieffenbachia-d3871b.netlify.app/ | grep -iE "x-frame|x-content|referrer"
+```

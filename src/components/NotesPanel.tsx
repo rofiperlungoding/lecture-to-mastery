@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { fetchNotes, createNote, updateNote, deleteNote, fetchHighlights, createHighlight, deleteHighlight } from '../lib/api'
+import { fetchNotes, createNote, updateNote, deleteNote, fetchHighlights, deleteHighlight } from '../lib/api'
 import { Button } from './Button'
 import { Card } from './Card'
 import { showToast } from './Toast'
@@ -115,16 +115,20 @@ export function NotesPanel({ docId }: Props) {
       <div className="mb-4 flex gap-1 rounded-lg bg-surface p-1">
         <button
           onClick={() => setTab('notes')}
-          className={'flex-1 rounded-md px-4 py-2 text-label font-medium transition-colors ' + (tab === 'notes' ? 'bg-white text-text shadow-sm' : 'text-text-muted hover:text-text-secondary')}
+          role="tab"
+          aria-selected={tab === 'notes'}
+          className={'flex-1 rounded-md px-4 py-2 text-label font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ' + (tab === 'notes' ? 'bg-surface-elevated text-text shadow-sm' : 'text-text-muted hover:text-text-secondary')}
         >
-          <Bookmark className="mr-1.5 inline h-4 w-4" />
+          <Bookmark className="mr-1.5 inline h-4 w-4" aria-hidden="true" />
           Notes
         </button>
         <button
           onClick={() => setTab('highlights')}
-          className={'flex-1 rounded-md px-4 py-2 text-label font-medium transition-colors ' + (tab === 'highlights' ? 'bg-white text-text shadow-sm' : 'text-text-muted hover:text-text-secondary')}
+          role="tab"
+          aria-selected={tab === 'highlights'}
+          className={'flex-1 rounded-md px-4 py-2 text-label font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ' + (tab === 'highlights' ? 'bg-surface-elevated text-text shadow-sm' : 'text-text-muted hover:text-text-secondary')}
         >
-          <Highlighter className="mr-1.5 inline h-4 w-4" />
+          <Highlighter className="mr-1.5 inline h-4 w-4" aria-hidden="true" />
           Highlights
         </button>
       </div>
@@ -153,7 +157,7 @@ export function NotesPanel({ docId }: Props) {
           ) : (
             <div className="space-y-2">
               {notes.map((note) => (
-                <Card key={note.id} className="!p-3">
+                <Card key={note.id} padding="sm">
                   {editingId === note.id ? (
                     <div className="space-y-2">
                       <textarea
@@ -193,15 +197,17 @@ export function NotesPanel({ docId }: Props) {
                               setEditingId(note.id);
                               setEditText(note.body)
                             }}
-                            className="rounded p-1 text-text-muted transition-colors hover:bg-bg-muted hover:text-text-secondary"
+                            className="rounded p-1 text-text-muted transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent hover:bg-bg-muted hover:text-text-secondary"
+                            aria-label={`Edit note`}
                           >
-                            <Pencil className="h-3.5 w-3.5" />
+                            <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                           </button>
                           <button
                             onClick={() => handleDeleteNote(note.id)}
-                            className="rounded p-1 text-text-muted transition-colors hover:bg-bg-muted hover:text-rose-600"
+                            className="rounded p-1 text-text-muted transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent hover:bg-bg-muted hover:text-rose-600"
+                            aria-label={`Delete note`}
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                           </button>
                         </div>
                       </div>
@@ -225,16 +231,17 @@ export function NotesPanel({ docId }: Props) {
           ) : (
             <div className="space-y-2">
               {highlights.map((hl) => (
-                <Card key={hl.id} className="!p-3 border-l-4 border-l-yellow-400">
+                <Card key={hl.id} padding="sm" className="border-l-4 border-l-yellow-400">
                   <p className="text-small text-text italic mb-1">&ldquo;{hl.quote}&rdquo;</p>
                   {hl.note && <p className="text-small text-text-muted mb-2">{hl.note}</p>}
                   <div className="flex items-center justify-between">
                     <span className="text-caption text-text-muted">{new Date(hl.created_at).toLocaleDateString()}</span>
                     <button
                       onClick={() => handleDeleteHighlight(hl.id)}
-                      className="rounded p-1 text-text-muted transition-colors hover:bg-bg-muted hover:text-rose-600"
+                      className="rounded p-1 text-text-muted transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent hover:bg-bg-muted hover:text-rose-600"
+                      aria-label="Delete highlight"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
                   </div>
                 </Card>

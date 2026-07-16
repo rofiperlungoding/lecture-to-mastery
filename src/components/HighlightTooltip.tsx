@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type RefObject } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createHighlight } from '../lib/api'
 import { showToast } from './Toast'
 import { Highlighter, X } from 'lucide-react'
@@ -45,7 +45,7 @@ export function HighlightTooltip({ docId, selectedText, position, onClose, onSav
         transform: 'translate(-50%, -100%)',
       }}
     >
-      <div className="bg-white rounded-lg shadow-xl border border-border p-2 flex items-center gap-1.5 min-w-[180px]">
+      <div className="bg-surface-elevated rounded-lg elevated-4 border border-border p-2 flex items-center gap-1.5 min-w-[180px]">
         {!showNoteInput ? (
           <>
             <button
@@ -95,7 +95,7 @@ export function HighlightTooltip({ docId, selectedText, position, onClose, onSav
       </div>
       {/* Arrow */}
       <div
-        className="absolute left-1/2 -translate-x-1/2 w-3 h-3 bg-white border-r border-b border-border rotate-45"
+        className="absolute left-1/2 -translate-x-1/2 w-3 h-3 bg-surface-elevated border-r border-b border-border rotate-45"
         style={{ top: 'calc(100% - 6px)' }}
       />
     </div>

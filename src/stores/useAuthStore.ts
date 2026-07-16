@@ -8,12 +8,15 @@ interface AuthState {
   initialized: boolean
   loading: boolean
   error: string | null
+  magicLinkSent: boolean
   initialize: () => Promise<void>
   signUp: (email: string, password: string) => Promise<void>
   signInWithPassword: (email: string, password: string) => Promise<void>
+  signInWithOtp: (email: string) => Promise<void>
   signInAnonymously: () => Promise<void>
   signOut: () => Promise<void>
   clearError: () => void
+  resetMagicLinkSent: () => void
 }
 
 let authSubscription: Subscription | null = null
@@ -24,8 +27,10 @@ export const useAuthStore = create<AuthState>()((set) => ({
   initialized: false,
   loading: false,
   error: null,
+  magicLinkSent: false,
 
   clearError: () => set({ error: null }),
+  resetMagicLinkSent: () => set({ magicLinkSent: false }),
 
   initialize: async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -70,6 +75,20 @@ export const useAuthStore = create<AuthState>()((set) => ({
       throw error
     }
     set({ session, user: session?.user ?? null, loading: false })
+  },
+
+  signInWithOtp: async (email: string) => {
+    set({ loading: true, error: null, magicLinkSent: false })
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: true },
+    })
+    if (error) {
+      console.error('[Auth] signInWithOtp failed:', { status: error.status, message: error.message })
+      set({ loading: false, error: error.message })
+      throw error
+    }
+    set({ loading: false, magicLinkSent: true })
   },
 
   signInAnonymously: async () => {

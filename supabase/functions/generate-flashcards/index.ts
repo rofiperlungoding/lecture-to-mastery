@@ -1,13 +1,27 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { chatComplete } from '../shared/llm.ts'
+
+function isAllowedOrigin(origin: string | null): boolean {
+  if (!origin) return false
+  try {
+    const url = new URL(origin)
+    if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') return true
+    if (url.hostname.endsWith('.lecture-to-mastery.pages.dev') || url.hostname === 'lecture-to-mastery.pages.dev') return true
+    if (url.hostname.endsWith('.netlify.app')) return true
+    return false
+  } catch { return false }
+}
 
 const ALLOWED_ORIGINS = [
   'http://localhost:5173',
+  'http://localhost:5174',
   'http://localhost:4173',
-  'https://30031c7a.lecture-to-mastery.pages.dev',
+  'https://master.lecture-to-mastery.pages.dev',
+  'https://preview-phase1-2.lecture-to-mastery.pages.dev',
 ]
 
 function corsHeaders(origin: string | null) {
-  const allowOrigin = origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]
+  const allowOrigin = isAllowedOrigin(origin) ? origin : 'http://localhost:5173'
   return {
     'Access-Control-Allow-Origin': allowOrigin,
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -45,21 +59,6 @@ function validateFlashcard(f: unknown): f is RawFlashcard {
   return true
 }
 
-async function callMistral(messages: { role: string; content: string }[], apiKey: string): Promise<{ flashcards: RawFlashcard[] }> {
-  const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: 'mistral-small-latest', messages, temperature: 0.2, response_format: { type: 'json_object' } }),
-  })
-  if (!response.ok) { const body = await response.text(); throw new Error(`Mistral API error: ${response.status} ${body}`) }
-  const result = await response.json()
-  const content = result.choices?.[0]?.message?.content ?? ''
-  let parsed: { flashcards: unknown[] }
-  try { parsed = JSON.parse(content) } catch { throw new Error('Failed to parse Mistral response as JSON') }
-  if (!Array.isArray(parsed.flashcards)) throw new Error('Response missing "flashcards" array')
-  return parsed as { flashcards: RawFlashcard[] }
-}
-
 Deno.serve(async (req) => {
   const origin = req.headers.get('origin')
   const headers = corsHeaders(origin)
@@ -73,8 +72,7 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
-    const mistralKey = Deno.env.get('MISTRAL_API_KEY')!
-    if (!supabaseUrl || !supabaseAnonKey || !mistralKey) throw new Error('Missing required environment variables')
+    if (!supabaseUrl || !supabaseAnonKey) throw new Error('Missing required environment variables')
 
     const authHeader = req.headers.get('Authorization') || ''
     const jwt = authHeader.replace('Bearer ', '')
@@ -92,6 +90,13 @@ Deno.serve(async (req) => {
     if (error) throw error
     if (!chunks || chunks.length === 0) throw new Error('No chunks found for this document')
 
+    const { data: doc } = await supabase
+      .from('documents')
+      .select('language')
+      .eq('id', documentId)
+      .single()
+    const language: string = doc?.language || 'en'
+
     const maxSamples = 12
     let sampled: { content: string }[]
     if (chunks.length <= maxSamples) { sampled = chunks } else {
@@ -101,22 +106,26 @@ Deno.serve(async (req) => {
     const context = sampled.map((c) => c.content).join('\n\n')
 
     const buildMessages = (fcCount: number, extra?: string) => [
-      { role: 'system' as const, content: 'You are a precise flashcard generator. Output ONLY valid JSON with this exact shape — no other text:\n{\n  "flashcards": [\n    {\n      "front": "concise question or term",\n      "back": "clear answer or definition"\n    }\n  ]\n}\n\nGenerate exactly ' + fcCount + ' flashcards based on the provided document. Each card should test understanding of a key concept, term, or relationship. Front should be a short question or term. Back should be a thorough but concise explanation. All strings must be non-empty.\n' + (extra ?? '') },
+      { role: 'system' as const, content: 'You are a precise flashcard generator. Output ONLY valid JSON with this exact shape — no other text:\n{\n  "flashcards": [\n    {\n      "front": "concise question or term",\n      "back": "clear answer or definition"\n    }\n  ]\n}\n\nGenerate exactly ' + fcCount + ' flashcards based on the provided document. Each card should test understanding of a key concept, term, or relationship. Front should be a short question or term. Back should be a thorough but concise explanation. All strings must be non-empty.\n\nIMPORTANT: Write ALL flashcards (front, back) in the language corresponding to code "' + language + '".\n' + (extra ?? '') },
       { role: 'user' as const, content: `Generate ${fcCount} flashcards from:\n\n${context}` },
     ]
 
-    let validCards: RawFlashcard[] = []
-    const { flashcards: raw1 } = await callMistral(buildMessages(count), mistralKey)
-    validCards = raw1.filter(validateFlashcard)
+    let validCards: RawFlashcard[] = []      const { content: raw1 } = await chatComplete({ messages: buildMessages(count), temperature: 0.2, jsonMode: true })
+    const parsed1 = JSON.parse(raw1)
+    if (!Array.isArray(parsed1.flashcards)) throw new Error('Response missing "flashcards" array')
+    validCards = parsed1.flashcards.filter(validateFlashcard)
 
     if (validCards.length < count) {
       const shortfall = count - validCards.length
-      try { const { flashcards: raw2 } = await callMistral(buildMessages(shortfall, `Previously generated ${validCards.length} valid flashcards. Generate ${shortfall} more.`), mistralKey); validCards.push(...raw2.filter(validateFlashcard)) } catch {}
+      try {          const { content: raw2 } = await chatComplete({ messages: buildMessages(shortfall, `Previously generated ${validCards.length} valid flashcards. Generate ${shortfall} more.`), temperature: 0.2, jsonMode: true })
+        const parsed2 = JSON.parse(raw2)
+        if (Array.isArray(parsed2.flashcards)) validCards.push(...parsed2.flashcards.filter(validateFlashcard))
+      } catch {}
     }
 
     if (validCards.length === 0) throw new Error('Failed to generate any valid flashcards after retry')
 
-    const rows = validCards.map((fc) => ({ document_id: documentId, front: fc.front.trim(), back: fc.back.trim() }))
+    const rows = validCards.map((fc) => ({ document_id: documentId, user_id: user.id, front: fc.front.trim(), back: fc.back.trim() }))
 
     await supabase.from('flashcards').delete().eq('document_id', documentId)
     const { error: insertErr } = await supabase.from('flashcards').insert(rows)

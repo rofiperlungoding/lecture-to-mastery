@@ -77,7 +77,7 @@ export function CorpusChat() {
         {messages.length === 0 && !loading && (
           <div className="flex h-full items-center justify-center">
             <EmptyState
-              icon={<span className="text-5xl">📚</span>}
+              illustration="chat"
               title="Ask all your notes"
               description="Ask questions across all your documents and get answers grounded in your entire corpus."
             />
@@ -90,7 +90,7 @@ export function CorpusChat() {
               className={`w-full rounded-2xl px-4 py-3 ${
                 msg.role === 'user'
                   ? 'bg-brand-500 text-text-inverse'
-                  : 'border border-border bg-white text-text'
+                  : 'border border-border bg-surface text-text'
               }`}
             >
               <p className="whitespace-pre-wrap text-body leading-relaxed">{msg.content}</p>

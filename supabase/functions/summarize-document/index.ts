@@ -1,20 +1,27 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { chatComplete } from '../shared/llm.ts'
 
-function isLocalhostOrigin(origin: string | null): boolean {
-  if (!origin) return false;
-  const url = new URL(origin);
-  return url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+function isAllowedOrigin(origin: string | null): boolean {
+  if (!origin) return false
+  try {
+    const url = new URL(origin)
+    if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') return true
+    if (url.hostname.endsWith('.lecture-to-mastery.pages.dev') || url.hostname === 'lecture-to-mastery.pages.dev') return true
+    if (url.hostname.endsWith('.netlify.app')) return true
+    return false
+  } catch { return false }
 }
 
 const ALLOWED_ORIGINS = [
   'http://localhost:5173',
   'http://localhost:5174',
   'http://localhost:4173',
-  'https://30031c7a.lecture-to-mastery.pages.dev',
+  'https://master.lecture-to-mastery.pages.dev',
+  'https://preview-phase1-2.lecture-to-mastery.pages.dev',
 ]
 
 function corsHeaders(origin: string | null) {
-  const allowOrigin = origin && (ALLOWED_ORIGINS.includes(origin) || isLocalhostOrigin(origin)) ? origin : ALLOWED_ORIGINS[0]
+  const allowOrigin = origin && (ALLOWED_ORIGINS.includes(origin) || isAllowedOrigin(origin)) ? origin : ALLOWED_ORIGINS[0]
   return {
     'Access-Control-Allow-Origin': allowOrigin,
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -63,18 +70,6 @@ function validateSummary(data: unknown): SummaryResult {
   return { tldr: (obj.tldr as string).trim(), keyPoints: obj.keyPoints as string[], keyTerms: obj.keyTerms as { term: string; definition: string }[] }
 }
 
-async function callMistral(messages: { role: string; content: string }[], apiKey: string): Promise<unknown> {
-  const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: 'mistral-small-latest', messages, temperature: 0.2, response_format: { type: 'json_object' } }),
-  })
-  if (!response.ok) { const body = await response.text(); throw new Error(`Mistral API error: ${response.status} ${body}`) }
-  const result = await response.json()
-  const content = result.choices?.[0]?.message?.content ?? ''
-  try { return JSON.parse(content) } catch { throw new Error('Failed to parse Mistral response as JSON') }
-}
-
 const MODE_PROMPTS: Record<string, string> = {
   'eli5': 'You are a study assistant explaining complex topics simply. Output ONLY valid JSON with this exact shape:\n{\n  "tldr": "Explain this document like I am 10 years old — simple analogies, no jargon, one paragraph",\n  "keyPoints": ["point 1", "point 2", ...],\n  "keyTerms": [{"term": "term name", "definition": "simple definition"}, ...]\n}\n\nRules:\n- tldr: use everyday language, analogies, avoid jargon\n- keyPoints: 3-5 simple bullet points\n- keyTerms: at least 2 important terms defined in plain language',
   'detailed': 'You are a precise study assistant. Output ONLY valid JSON with this exact shape:\n{\n  "tldr": "comprehensive 3-4 sentence summary covering main thesis, evidence, and conclusions",\n  "keyPoints": ["point 1", "point 2", ...],\n  "keyTerms": [{"term": "term name", "definition": "thorough definition with context"}, ...]\n}\n\nRules:\n- tldr: thorough, include methodology and conclusions\n- keyPoints: 5-8 detailed bullet points with supporting evidence\n- keyTerms: at least 4 terms with detailed definitions',
@@ -100,8 +95,7 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
-    const mistralKey = Deno.env.get('MISTRAL_API_KEY')!
-    if (!supabaseUrl || !supabaseAnonKey || !mistralKey) throw new Error('Missing required environment variables')
+    if (!supabaseUrl || !supabaseAnonKey) throw new Error('Missing required environment variables')
 
     const authHeader = req.headers.get('Authorization') || ''
     const jwt = authHeader.replace('Bearer ', '')
@@ -127,19 +121,45 @@ Deno.serve(async (req) => {
     }
     const context = sampled.map((c) => c.content).join('\n\n')
 
-    const systemContent = MODE_PROMPTS[mode]
+    const { data: doc } = await supabase
+      .from('documents')
+      .select('language')
+      .eq('id', documentId)
+      .single()
+    const language: string = doc?.language || 'en'
+
+    const systemContent = MODE_PROMPTS[mode] + `\n\nIMPORTANT: Write the ENTIRE response in the language corresponding to code "${language}" (e.g., "en"=English, "es"=Spanish, "fr"=French, "de"=German, "zh"=Chinese, "ja"=Japanese, "ko"=Korean). All fields (tldr, keyPoints, keyTerms) must be in that language.`
     const systemMessage = { role: 'system' as const, content: systemContent }
-    const userMessage = { role: 'user' as const, content: `Generate a ${mode} summary of this document:\n\n${context}` }
+    const userMessage = { role: 'user' as const, content: `Generate a ${mode} summary of this document. Write in language code: ${language}.\n\n${context}` }
 
     let summary: SummaryResult
     try {
-      const parsed = await callMistral([systemMessage, userMessage], mistralKey)
-      summary = validateSummary(parsed)
+      const { content } = await chatComplete({ messages: [systemMessage, userMessage], temperature: 0.2, jsonMode: true })
+      summary = validateSummary(JSON.parse(content))
     } catch {
-      try { const parsed = await callMistral([systemMessage, userMessage], mistralKey); summary = validateSummary(parsed) }
-      catch (retryErr) { throw new Error(`Summary generation failed after retr
-y: ${retryErr}`)}
+      try {
+        const { content } = await chatComplete({ messages: [systemMessage, userMessage], temperature: 0.2, jsonMode: true })
+        summary = validateSummary(JSON.parse(content))
+      } catch (retryErr) { throw new Error(`Summary generation failed after retry: ${(retryErr as Error).message}`) }
     }
+
+    try {
+      await supabase
+        .from('doc_artifacts')
+        .delete()
+        .eq('document_id', documentId)
+        .eq('artifact_type', `summary_${mode}`)
+      await supabase
+        .from('doc_artifacts')
+        .insert({
+          document_id: documentId,
+          artifact_type: `summary_${mode}`,
+          content: summary,
+        })
+    } catch (persistErr) {
+      console.error('Failed to persist summary:', (persistErr as Error).message)
+    }
+
     return new Response(JSON.stringify(summary), { headers: { ...headers, 'Content-Type': 'application/json' } })
   } catch (err) {
     return new Response(JSON.stringify({ error: (err as Error).message }), { status: 500, headers: { ...headers, 'Content-Type': 'application/json' } })

@@ -1,9 +1,8 @@
 import { createRoute } from '@tanstack/react-router'
 import { Route as RootRoute } from './__root'
 import { useAppStore } from '../stores/useAppStore'
-import { fetchDocProgress, fetchFocusAreas } from '../lib/api'
-import type { FocusArea } from "../types/db"
-import { fetchAchievements, fetchUserStats, calcLevel, xpProgressInLevel } from '../lib/gamification'
+import { fetchDocProgress } from '../lib/api'
+import { fetchEarnedAchievements, fetchUserStats, calcLevel, xpProgressInLevel } from '../lib/gamification'
 import { Spinner } from '../components/Spinner'
 import { EmptyState } from '../components/EmptyState'
 import { PageHeader } from '../components/PageHeader'
@@ -11,7 +10,7 @@ import { PageContainer } from '../components/PageContainer'
 import { Card } from '../components/Card'
 import { Link } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
-import { Flame, Trophy, Award, BarChart3 } from 'lucide-react'
+import { Flame, Trophy, Award } from 'lucide-react'
 import { ACHIEVEMENT_DEFS } from '../types/db'
 import type { Achievement, UserStats } from '../types/db'
 
@@ -28,12 +27,13 @@ function ProgressPage() {
   const [statsMap, setStatsMap] = useState<Record<string, DocStats>>({})
   const [loading, setLoading] = useState(true)
   const [achievements, setAchievements] = useState<Achievement[]>([])
-const [focusAreas, setFocusAreas] = useState<FocusArea[]>([])
   const [userStats, setUserStats] = useState<UserStats | null>(null)
 
   useEffect(() => {
     fetchDocuments()
-    fetchAchievements().then(setAchievements)
+    fetchEarnedAchievements().then((earned) => {
+      setAchievements(Array.from(earned).map((key) => ({ id: key, user_id: '', key, unlocked_at: '' })))
+    })
     fetchUserStats().then(setUserStats)
   }, [])
 
@@ -72,10 +72,10 @@ const [focusAreas, setFocusAreas] = useState<FocusArea[]>([])
       <PageContainer>
         <PageHeader
           title="Progress"
-          description="Track your study activity and achievements"
+          meta="Track your study activity and achievements"
         />
         <EmptyState
-          icon={BarChart3}
+          illustration="activity"
           title="No study data yet"
           description="Upload a document to start tracking your progress."
         />
@@ -112,7 +112,7 @@ const [focusAreas, setFocusAreas] = useState<FocusArea[]>([])
     <PageContainer>
       <PageHeader
         title="Progress"
-        description="Track your study activity and achievements"
+        meta="Track your study activity and achievements"
       />
 
       {/* XP Overview */}
@@ -192,42 +192,16 @@ const [focusAreas, setFocusAreas] = useState<FocusArea[]>([])
         </Card>
       )}
 
-      {/* Focus Areas */}
-      {focusAreas.length > 0 && (
-        <div className="mb-6">
-          <h2 className="text-h3 font-semibold text-text mb-4">Focus Areas</h2>
-          <p className="text-small text-text-muted mb-3">Topics ranked by miss rate across practice exams. Start a targeted review of your weakest topic.</p>
-          <div className="space-y-2">
-            {focusAreas.slice(0, 5).map((area) => (
-              <div key={area.topic} className="flex items-center justify-between rounded-lg border border-border bg-white px-4 py-3 shadow-sm">
-                <div className="flex items-center gap-3">
-                  <div
-                    className="h-2 w-2 rounded-full"
-                    style={{ backgroundColor: area.missRate > 0.5 ? "#f43f5e" : area.missRate > 0.25 ? "#f59e0b" : "#22c55e" }}
-                  />
-                  <span className="text-label font-medium text-text">{area.topic}</span>
-                </div>
-                <div className="flex items-center gap-4">
-                  <span className="text-small text-text-muted">{area.correctAttempts}/{area.totalAttempts} correct</span>
-                  <span className={"text-small font-medium " + (area.missRate > 0.5 ? "text-rose-600" : area.missRate > 0.25 ? "text-amber-600" : "text-green-600")}>
-                    {Math.round(area.missRate * 100)}% miss rate
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Achievements Grid */}
       <div className="mb-6">
         <h2 className="text-h3 font-semibold text-text mb-4">Achievements</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-          {Object.entries(ACHIEVEMENT_DEFS).map(([key, def]) => {
-            const unlocked = unlockedKeys.has(key)
+          {ACHIEVEMENT_DEFS.map((def) => {
+            const unlocked = unlockedKeys.has(def.id)
             return (
               <Card
-                key={key}
+                key={def.id}
                 className={`p-3 transition-all duration-150 ${
                   unlocked
                     ? 'ring-1 ring-brand-200'
@@ -241,7 +215,6 @@ const [focusAreas, setFocusAreas] = useState<FocusArea[]>([])
                   </p>
                   <p className="text-caption text-text-muted">{def.description}</p>
                   {unlocked && (
-       
                     <div className="mt-1 flex items-center gap-1 text-caption text-brand-600">
                       <Award className="h-3 w-3" />
                       <span>Unlocked</span>

@@ -23,7 +23,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
   const navigate = useNavigate()
   const setUploadOpen = useAppStore((s) => s.setUploadOpen)
-  const toggleTheme = useThemeStore((s) => s.toggleTheme)
+  const cycleMode = useThemeStore((s) => s.cycleMode)
   const signOut = useAuthStore((s) => s.signOut)
 
   useEffect(() => {
@@ -60,7 +60,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     {
       label: 'Toggle theme',
       run: () => {
-        toggleTheme()
+        cycleMode()
       },
     },
     {
@@ -107,10 +107,10 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
       {/* Centered Modal */}
       <div
         ref={containerRef}
-        className="relative w-full max-w-lg overflow-hidden rounded-xl border border-border dark:border-[#27272A] bg-white dark:bg-[#161618] shadow-lg ring-1 ring-black/5 dark:ring-white/10 transition-all duration-150"
+        className="relative w-full max-w-lg overflow-hidden rounded-xl border border-border bg-surface-elevated elevated-3 transition-all duration-150"
       >
-        <div className="flex items-center gap-3 border-b border-border dark:border-[#27272A] px-4 py-3">
-          <Search className="h-5 w-5 text-text-muted dark:text-[#71717A] shrink-0" />
+        <div className="flex items-center gap-3 border-b border-border px-4 py-3">
+          <Search className="h-5 w-5 text-text-muted shrink-0" />
           <input
             ref={inputRef}
             type="text"
@@ -121,13 +121,13 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
             }}
             onKeyDown={handleKeyDown}
             placeholder="Type a command or search..."
-            className="w-full bg-transparent text-body text-text dark:text-[#FAFAFA] placeholder-text-muted dark:placeholder-[#71717A] focus:outline-none"
+            className="w-full bg-transparent text-body text-text placeholder-text-muted focus:outline-none"
           />
         </div>
 
         <div className="max-h-[300px] overflow-y-auto p-2">
           {filteredActions.length === 0 ? (
-            <p className="p-3 text-small text-text-muted dark:text-[#71717A] text-center">No commands found.</p>
+            <p className="p-3 text-small text-text-muted text-center">No commands found.</p>
           ) : (
             <ul className="space-y-0.5">
               {filteredActions.map((action, idx) => {
@@ -142,8 +142,8 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
                       onMouseEnter={() => setActiveIndex(idx)}
                       className={`flex w-full items-center rounded-lg px-3 py-2.5 text-left text-label font-medium transition-colors duration-100 ${
                         isSelected
-                          ? 'bg-brand-500/10 dark:bg-[#375DFB]/20 text-brand-700 dark:text-[#FAFAFA]'
-                          : 'text-text-secondary dark:text-[#A1A1AA] hover:bg-bg-subtle dark:hover:bg-[#1C1C1F]'
+                          ? 'bg-brand-500/10 text-brand-700'
+                          : 'text-text-secondary hover:bg-surface-subtle'
                       }`}
                     >
                       {action.label}
