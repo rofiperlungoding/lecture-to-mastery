@@ -153,7 +153,7 @@ export const Route = createRootRoute({
     }
 
     return (
-      <div className="flex min-h-screen bg-canvas text-text" style={{ paddingTop: 'env(safe-area-inset-top)', paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)' }}>
+      <div className="flex min-h-screen bg-canvas text-text w-full max-w-full overflow-x-hidden" style={{ paddingTop: 'env(safe-area-inset-top)', paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)' }}>
         <Sidebar />
         <main className="flex flex-1 flex-col overflow-auto bg-canvas">
           {/* Top Bar with theme toggle — chrome material */}
@@ -277,7 +277,7 @@ function GuestUpgradeBanner() {
     <div className="border-b border-border bg-brand-50 dark:bg-brand-950/10">
       <div className="flex items-center justify-center gap-2 px-4 py-2 text-small text-brand-700 dark:text-brand-400">
         <span className="h-1.5 w-1.5 rounded-full bg-brand-500" />
-        Guest mode &mdash;{" "}
+        Guest mode -{" "}
         <button
           onClick={() => setShowForm(!showForm)}
           className="font-medium underline underline-offset-2 hover:text-brand-600 dark:hover:text-brand-300"

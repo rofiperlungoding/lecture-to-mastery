@@ -338,6 +338,98 @@ html.theme-transitioning [class*="border-"] {
   animation: shimmer 1.6s ease-in-out infinite;
 }
 
+/* ── Premium pulse (for live indicators) ── */
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
+}
+
+/* ── Breathe (for card hover states) ────── */
+@keyframes breathe {
+  0%, 100% { box-shadow: var(--shadow-1); }
+  50% { box-shadow: var(--shadow-2); }
+}
+
+/* ── Stagger children entrance ──────────── */
+@keyframes stagger-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-stagger-enter {
+  animation-name: stagger-fade-in;
+  animation-duration: 400ms;
+  animation-timing-function: var(--ease-spring);
+  animation-fill-mode: both;
+}
+
+/* ── Card lift (for interactive cards) ──── */
+@keyframes card-lift {
+  0% { transform: translateY(0); box-shadow: var(--shadow-1); }
+  100% { transform: translateY(-4px); box-shadow: var(--shadow-3); }
+}
+
+.card-lift-hover {
+  transition: transform 200ms var(--ease-spring), box-shadow 200ms var(--ease-spring);
+}
+.card-lift-hover:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-2);
+}
+
+/* ── Stat counter entrance ──────────────── */
+@keyframes count-up {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Premium gradient text ──────────────── */
+.text-gradient-brand {
+  background: linear-gradient(135deg, var(--color-accent), var(--color-accent-pressed));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Glass card effect ──────────────────── */
+.glass-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-hairline);
+  box-shadow: var(--shadow-1);
+}
+@supports (backdrop-filter: blur(12px)) {
+  .glass-card {
+    background: var(--chrome-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+}
+
+/* ── Staggered list children ────────────── */
+.stagger-children > * {
+  opacity: 0;
+  animation: stagger-fade-in 400ms var(--ease-spring) forwards;
+}
+.stagger-children > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-children > *:nth-child(2) { animation-delay: 60ms; }
+.stagger-children > *:nth-child(3) { animation-delay: 120ms; }
+.stagger-children > *:nth-child(4) { animation-delay: 180ms; }
+.stagger-children > *:nth-child(5) { animation-delay: 240ms; }
+.stagger-children > *:nth-child(6) { animation-delay: 300ms; }
+.stagger-children > *:nth-child(7) { animation-delay: 360ms; }
+.stagger-children > *:nth-child(8) { animation-delay: 420ms; }
+.stagger-children > *:nth-child(9) { animation-delay: 480ms; }
+.stagger-children > *:nth-child(10) { animation-delay: 540ms; }
+
+/* ── Smooth shadow transition for all cards ── */
+.card-shadow-transition {
+  transition: box-shadow 200ms var(--ease-standard), transform 200ms var(--ease-spring);
+}
+
 /* ── Respect reduced motion ───────────────── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -355,9 +447,16 @@ html.theme-transitioning [class*="border-"] {
   .animate-scale-in,
   .animate-slide-up,
   .animate-page-enter,
-  .animate-tab-enter {
+  .animate-tab-enter,
+  .animate-stagger-enter,
+  .animate-pulse-soft {
     animation-name: none;
     opacity: 1;
     transform: none;
+  }
+
+  .stagger-children > * {
+    opacity: 1;
+    animation: none;
   }
 }

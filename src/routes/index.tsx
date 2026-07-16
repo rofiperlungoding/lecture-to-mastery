@@ -563,7 +563,7 @@ function IndexPage() {
           )}
 
           {/* ====== Stat Cards ====== */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+          <div className="stagger-children grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
             <StatCard
               icon={<BookOpen className="h-5 w-5" />}
               label="Cards due today"
@@ -707,7 +707,7 @@ function IndexPage() {
                 Continue studying
               </h2>
               <div className="relative">
-                <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-none scroll-container">
+                <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-none scroll-container stagger-children">
                   {continueDocs.map(({ doc, dueCount: dDue, mastery }) => (
                     <Link
                       key={doc.id}
@@ -715,7 +715,7 @@ function IndexPage() {
                       params={{ docId: doc.id }}
                       className="shrink-0 w-64"
                     >
-                      <Card hoverable className="flex flex-col gap-3">
+                      <Card hoverable className="card-lift-hover flex flex-col gap-3">
                         <div className="flex items-start justify-between gap-2">
                           <h4 className="text-subhead text-text font-medium leading-snug line-clamp-2">
                             {doc.title}
@@ -769,7 +769,7 @@ function IndexPage() {
               Recent activity
             </h2>
             {dashboardLoading ? (
-              <Card className="!p-0 divide-y divide-border-hairline overflow-hidden">
+              <Card className="!p-0 divide-y divide-border-hairline overflow-hidden card-lift-hover">
                 {[1,2,3].map((i) => <SkeletonActivityItem key={i} />)}
               </Card>
             ) : activity && activity.length > 0 ? (
@@ -814,8 +814,11 @@ function IndexPage() {
 
           {/* ====== Document Grid ====== */}
           <div className="mb-8">
-            <h2 className="text-title-2 text-text mb-4">Your documents</h2>
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            <h2 className="text-title-2 text-text mb-4 flex items-center gap-2">
+              <BookOpen className="h-5 w-5 text-brand-500" />
+              Your documents
+            </h2>
+            <div className="stagger-children grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {documents.map((doc) => {
                 const dDue = docDueCounts[doc.id]
                 const mastery = docMastery[doc.id]

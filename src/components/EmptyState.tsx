@@ -79,34 +79,37 @@ export function EmptyState({
     <div
       className={`flex flex-col items-center justify-center text-center ${
         compact ? "py-10" : "py-16"
-      }`}
+      } animate-fade-in`}
+      style={{ animationDuration: '400ms' }}
     >
       {/* Brand wordmark (for top-level pages like dashboard) */}
       {showBrand && (
-        <div className="mb-6">
+        <div className="mb-6 animate-scale-in" style={{ animationDuration: '400ms' }}>
           <Wordmark size="md" showTagline />
         </div>
       )}
 
       {/* Custom illustration or default */}
       {!showBrand && (customIllustration || illustration !== "none") && (
-        <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-accent-subtle/50">
-          {customIllustration || <IllusSwitch illustration={illustration} />}
+        <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-brand-500/10 to-brand-500/5 transition-transform duration-300 hover:scale-110 group">
+          <div className="transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3">
+            {customIllustration || <IllusSwitch illustration={illustration} />}
+          </div>
         </div>
       )}
 
       {/* Title */}
-      <h3 className="text-title-3 text-text text-balance">{title}</h3>
+      <h3 className="text-title-3 text-text text-balance animate-stagger-enter" style={{ animationDelay: '60ms' }}>{title}</h3>
 
       {/* Description */}
       {description && (
-        <p className="mt-1.5 max-w-sm text-callout text-text-secondary text-pretty">
+        <p className="mt-1.5 max-w-sm text-callout text-text-secondary text-pretty animate-stagger-enter" style={{ animationDelay: '120ms' }}>
           {description}
         </p>
       )}
 
       {/* CTA */}
-      {action && <div className="mt-6">{action}</div>}
+      {action && <div className="mt-6 animate-stagger-enter" style={{ animationDelay: '180ms' }}>{action}</div>}
     </div>
   );
 }

@@ -20,6 +20,11 @@ import {
   Globe,
   CheckCircle2,
   XCircle,
+  ChevronRight,
+  Target,
+  Moon,
+  Sun,
+  Eye,
 } from 'lucide-react'
 import {
   isPushSupported,
@@ -42,7 +47,6 @@ function SettingsPage() {
   const [deleting, setDeleting] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
-  // ── Profile state ──────────────────────────────────────────────────────
   const [profileLoading, setProfileLoading] = useState(true)
   const [displayName, setDisplayName] = useState('')
   const [bio, setBio] = useState('')
@@ -51,12 +55,10 @@ function SettingsPage() {
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'invalid'>('idle')
   const [usernameReason, setUsernameReason] = useState('')
   const [isPublic, setIsPublic] = useState(false)
-  const [showPrivacyInfo, setShowPrivacyInfo] = useState(false)
   const [saving, setSaving] = useState(false)
   const [dailyGoal, setDailyGoal] = useState(20)
   const [dailyGoalChanged, setDailyGoalChanged] = useState(false)
 
-  // Notification state
   const pushSupported = isPushSupported()
   const [notifEnabled, setNotifEnabled] = useState(false)
   const [notifLoading, setNotifLoading] = useState(false)
@@ -76,7 +78,6 @@ function SettingsPage() {
     check()
   }, [pushSupported])
 
-  // ── Fetch profile on mount ────────────────────────────────────────────
   useEffect(() => {
     getMyProfile().then((p) => {
       if (p) {
@@ -95,7 +96,6 @@ function SettingsPage() {
     }).catch(() => {})
   }, [])
 
-  // ── Handle username availability check ─────────────────────────────────
   useEffect(() => {
     if (!username || username === usernameSaved || username.length < 3) {
       setUsernameStatus('idle')
@@ -189,44 +189,43 @@ function SettingsPage() {
   }
 
   return (
-    <PageContainer className="py-8">
+    <PageContainer className="animate-page-enter py-8">
       <div className="mx-auto max-w-2xl">
         <h1 className="text-pageTitle text-text mb-8">Settings</h1>
 
         {/* Profile Section */}
-        <Card padding="lg" className="mb-6">
-          <div className="mb-4 flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-50">
-              <User className="h-5 w-5 text-brand-500" />
-            </div>
-            <h2 className="text-h3 text-text">Profile</h2>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-brand-100 text-label font-bold text-brand-700">
-              {initials || '?'}
+        <Card padding="lg" className="mb-6 card-lift-hover relative overflow-hidden">
+          <div className="flex items-center gap-4 mb-5">
+            <div className="relative">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-indigo-500 text-label font-bold text-white shadow-md">
+                {initials || '?'}
+              </div>
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-label font-semibold text-text">{displayName}</p>
-              {email && <p className="text-small text-text-muted">{email}</p>}
-              {isAnonymous && <p className="text-small text-text-muted">Guest account</p>}
+              <p className="text-title-3 font-semibold text-text">{displayNameFallback}</p>
+              {email && <p className="text-body text-text-secondary mt-0.5">{email}</p>}
+              {isAnonymous && (
+                <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-small font-medium text-amber-700">
+                  Guest account
+                </span>
+              )}
             </div>
           </div>
-          <div className="mt-4 flex flex-wrap gap-3">
+
+          <div className="flex flex-wrap gap-2">
             <Button variant="secondary" size="sm" onClick={handleSignOut} isLoading={loading} leadingIcon={<LogOut className="h-4 w-4" />}>
               Sign out
             </Button>
-            <Link to="/progress" className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-small font-medium text-text-secondary hover:bg-bg-muted transition-colors duration-150">
+            <Link to="/progress" className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-small font-medium text-text-secondary transition-all duration-150 hover:bg-surface-subtle hover:text-text hover:border-border-strong">
               <BarChart3 className="h-4 w-4" />
               View progress
             </Link>
           </div>
 
-          {/* Username / display name / bio form */}
           {!profileLoading && (
-            <div className="mt-5 space-y-4 border-t border-border pt-5">
-              {/* Username */}
+            <div className="mt-6 space-y-5 border-t border-border pt-6">
               <div>
-                <label htmlFor="username" className="mb-1.5 flex items-center gap-1.5 text-caption font-medium text-text-secondary">
+                <label htmlFor="username" className="mb-1.5 flex items-center gap-1.5 text-footnote font-medium text-text-secondary">
                   <AtSign className="h-3.5 w-3.5" />
                   Username
                 </label>
@@ -237,7 +236,7 @@ function SettingsPage() {
                     value={username}
                     onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, '').slice(0, 30))}
                     placeholder="your-username"
-                    className="w-full rounded-lg border border-border px-3 py-2 pr-10 text-body text-text placeholder-text-muted transition-colors focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                    className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 pr-10 text-body text-text placeholder-text-muted transition-all duration-150 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2">
                     {usernameStatus === 'checking' && <Loader2 className="h-4 w-4 animate-spin text-text-muted" />}
@@ -246,43 +245,54 @@ function SettingsPage() {
                   </span>
                 </div>
                 {usernameStatus === 'available' && (
-                  <p className="mt-1 text-footnote text-emerald-600">Username available!</p>
+                  <p className="mt-1 text-smallest text-emerald-600">Username available!</p>
                 )}
                 {usernameStatus === 'taken' && (
-                  <p className="mt-1 text-footnote text-rose-600">{usernameReason}</p>
+                  <p className="mt-1 text-smallest text-rose-600">{usernameReason}</p>
                 )}
                 {usernameStatus === 'idle' && !username && (
-                  <p className="mt-1 text-footnote text-text-muted">3-30 characters, letters/numbers/underscores, must start with a letter</p>
+                  <p className="mt-1 text-smallest text-text-muted">3-30 characters, letters/numbers/underscores</p>
                 )}
               </div>
 
-              {/* Display name */}
               <div>
-                <label htmlFor="displayName" className="mb-1.5 text-caption font-medium text-text-secondary">Display name</label>
+                <label htmlFor="displayName" className="mb-1.5 text-footnote font-medium text-text-secondary">Display name</label>
                 <input
                   id="displayName"
                   type="text"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value.slice(0, 100))}
                   placeholder="Your display name"
-                  className="w-full rounded-lg border border-border px-3 py-2 text-body text-text placeholder-text-muted transition-colors focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                  className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-body text-text placeholder-text-muted transition-all duration-150 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
                 />
               </div>
 
-              {/* Bio */}
               <div>
-                <label htmlFor="bio" className="mb-1.5 text-caption font-medium text-text-secondary">Bio</label>
+                <label htmlFor="bio" className="mb-1.5 text-footnote font-medium text-text-secondary">Bio</label>
                 <textarea
                   id="bio"
                   value={bio}
                   onChange={(e) => setBio(e.target.value.slice(0, 500))}
                   placeholder="A short description about yourself"
                   rows={3}
-                  className="w-full rounded-lg border border-border px-3 py-2 text-body text-text placeholder-text-muted transition-colors resize-none focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                  className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-body text-text placeholder-text-muted transition-all duration-150 resize-none focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
                 />
               </div>
 
-              {/* Save button */}
+              <div className="flex items-center justify-between rounded-lg bg-surface-muted/50 px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <Globe className="h-4 w-4 text-text-muted" />
+                  <span className="text-small font-medium text-text">Public profile</span>
+                </div>
+                <button
+                  onClick={() => setIsPublic(!isPublic)}
+                  className={`relative h-6 w-11 rounded-full transition-colors duration-200 ${isPublic ? 'bg-brand-500' : 'bg-surface-muted'}`}
+                  aria-label={isPublic ? 'Set profile to private' : 'Set profile to public'}
+                >
+                  <span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${isPublic ? 'translate-x-5' : ''}`} />
+                </button>
+              </div>
+
               <div className="flex gap-3">
                 <Button
                   size="sm"
@@ -304,7 +314,7 @@ function SettingsPage() {
                     }
                   }}
                   isLoading={saving}
-                  disabled={saving || usernameStatus === 'taken' || (username !== usernameSaved && usernameStatus !== 'available' && username.length >= 3)}
+                  disabled={saving || usernameStatus === 'taken'}
                 >
                   Save profile
                 </Button>
@@ -313,121 +323,40 @@ function SettingsPage() {
           )}
         </Card>
 
-        {/* Notifications Section */}
-        {pushSupported && (
-          <Card padding="lg" className="mb-6">
-            <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-50">
-                <Bell className="h-5 w-5 text-brand-500" />
-              </div>
-              <h2 className="text-h3 text-text">Notifications</h2>
+        {/* Study Settings */}
+        <Card padding="lg" className="mb-6 card-lift-hover">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500/20 to-brand-500/5">
+              <Target className="h-5 w-5 text-brand-500" />
             </div>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-label font-medium text-text">Daily review reminder</p>
-                  <p className="text-small text-text-secondary mt-0.5">
-                    Get a notification when flashcards are due for review.
-                  </p>
-                </div>
-                {!notifInitialized ? (
-                  <Loader2 className="h-5 w-5 animate-spin text-text-muted" />
-                ) : (
-                  <button
-                    onClick={async () => {
-                      setNotifLoading(true)
-                      try {
-                        if (notifEnabled) {
-                          const ok = await unsubscribeFromPush()
-                          if (ok) {
-                            setNotifEnabled(false)
-                            showToast('success', 'Notifications disabled')
-                          } else {
-                            showToast('error', 'Failed to unsubscribe')
-                          }
-                        } else {
-                          const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY
-                          if (!vapidKey) {
-                            showToast('error', 'Notifications not configured yet — set VITE_VAPID_PUBLIC_KEY in your environment')
-                            return
-                          }
-                          // Request permission first
-                          const perm = await Notification.requestPermission()
-                          if (perm !== 'granted') {
-                            showToast('error', 'Notification permission denied. Enable it in your browser settings.')
-                            return
-                          }
-                          const ok = await subscribeToPush(vapidKey)
-                          if (ok) {
-                            setNotifEnabled(true)
-                            showToast('success', 'Notifications enabled! You\'ll get reminders for due cards.')
-                          } else {
-                            showToast('error', 'Failed to subscribe to push notifications')
-                          }
-                        }
-                      } catch (err) {
-                        showToast('error', `Notification setup failed: ${(err as Error).message}`)
-                      } finally {
-                        setNotifLoading(false)
-                      }
-                    }}
-                    disabled={notifLoading || !notifInitialized}
-                    className={`relative inline-flex h-7 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ease-standard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-50 ${
-                      notifEnabled ? 'bg-brand-500' : 'bg-surface-muted'
-                    }`}
-                    role="switch"
-                    aria-checked={notifEnabled}
-                    aria-label="Toggle daily review reminders"
-                  >
-                    <span
-                      className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform duration-200 ease-standard ${
-                        notifEnabled ? 'translate-x-[22px]' : 'translate-x-[2px]'
-                      }`}
-                    />
-                  </button>
-                )}
-              </div>
-              {!notifInitialized && (
-                <p className="text-small text-text-muted">Checking notification status...</p>
-              )}
-              {getNotificationPermission() === 'denied' && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-small text-amber-800">
-                  <p className="font-medium">Notifications are blocked in your browser settings.</p>
-                  <p className="mt-0.5">
-                    Enable them in your browser's site settings to receive daily review reminders.
-                  </p>
-                </div>
-              )}
-            </div>
-          </Card>
-        )}
-
-        {/* Study Preferences Section */}
-        <Card padding="lg" className="mb-6">
-          <div className="mb-4 flex items-center gap-3">
-            <h2 className="text-h3 text-text">Study Preferences</h2>
+            <h2 className="text-title-3 text-text">Study Settings</h2>
           </div>
+
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-label font-medium text-text">Daily review goal</p>
-                <p className="text-small text-text-secondary mt-0.5">
-                  Number of flashcards to review each day.
-                </p>
+                <p className="text-small text-text-secondary">How many flashcards to review each day</p>
               </div>
-              <input
-                type="number"
-                min={5}
-                max={100}
-                value={dailyGoal}
-                onChange={(e) => {
-                  const val = Math.max(5, Math.min(100, parseInt(e.target.value) || 20))
-                  setDailyGoal(val)
-                  setDailyGoalChanged(true)
-                }}
-                className="w-20 rounded-lg border border-border px-3 py-2 text-body text-text text-center tabular-nums transition-colors focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
-              />
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { setDailyGoal(Math.max(5, dailyGoal - 5)); setDailyGoalChanged(true); }}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-text-secondary transition-colors hover:bg-surface-subtle"
+                  aria-label="Decrease daily goal"
+                >
+                  -
+                </button>
+                <span className="w-10 text-center text-label font-semibold text-text tabular-nums">{dailyGoal}</span>
+                <button
+                  onClick={() => { setDailyGoal(Math.min(100, dailyGoal + 5)); setDailyGoalChanged(true); }}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-text-secondary transition-colors hover:bg-surface-subtle"
+                  aria-label="Increase daily goal"
+                >
+                  +
+                </button>
+              </div>
             </div>
+
             {dailyGoalChanged && (
               <div className="flex justify-end">
                 <Button
@@ -436,9 +365,9 @@ function SettingsPage() {
                     try {
                       await upsertUserSettings({ daily_goal: dailyGoal })
                       setDailyGoalChanged(false)
-                      showToast('success', 'Daily goal saved!')
+                      showToast('success', `Daily goal set to ${dailyGoal}`)
                     } catch (err) {
-                      showToast('error', `Failed to save: ${(err as Error).message}`)
+                      showToast('error', `Failed: ${(err as Error).message}`)
                     }
                   }}
                 >
@@ -449,231 +378,117 @@ function SettingsPage() {
           </div>
         </Card>
 
-        {/* Privacy & Data Section */}
-        <div className="space-y-6">
-          {/* What we store */}
-          <Card padding="lg">
-            <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-50">
-                <Shield className="h-5 w-5 text-brand-500" />
+        {/* Notifications */}
+        {pushSupported && notifInitialized && (
+          <Card padding="lg" className="mb-6 card-lift-hover">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-500/5">
+                <Bell className="h-5 w-5 text-amber-500" />
               </div>
-              <h2 className="text-h3 text-text">Privacy & Data</h2>
+              <h2 className="text-title-3 text-text">Notifications</h2>
             </div>
 
-            {/* Public profile toggle */}
-            {!profileLoading && (
-              <div className="mb-5 rounded-lg border border-border p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3">
-                    <Globe className={`h-5 w-5 mt-0.5 ${isPublic ? 'text-brand-500' : 'text-text-muted'}`} />
-                    <div>
-                      <p className="text-label font-medium text-text">
-                        Public profile
-                      </p>
-                      <p className="mt-0.5 text-small text-text-secondary">
-                        {isPublic
-                          ? 'Your profile and aggregate study stats are visible to anyone.'
-                          : 'Your profile is private. Only you can see it.'}
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      if (!isPublic) {
-                        // Show explanation before enabling
-                        showToast('success', 'Toggle on to see what becomes visible')
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-label font-medium text-text">Review reminders</p>
+                <p className="text-small text-text-secondary">Get notified when flashcards are due</p>
+              </div>
+              <button
+                onClick={async () => {
+                  setNotifLoading(true)
+                  try {
+                    if (notifEnabled) {
+                      await unsubscribeFromPush()
+                      setNotifEnabled(false)
+                      showToast('success', 'Notifications disabled')
+                    } else {
+                      const ok = await subscribeToPush()
+                      if (ok) {
+                        setNotifEnabled(true)
+                        showToast('success', 'Notifications enabled')
+                      } else {
+                        showToast('error', 'Notification permission denied')
                       }
-                      setIsPublic(!isPublic)
-                      setShowPrivacyInfo(!isPublic)
-                    }}
-                    className={`relative inline-flex h-7 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ${
-                      isPublic ? 'bg-brand-500' : 'bg-surface-muted'
-                    }`}
-                    role="switch"
-                    aria-checked={isPublic}
-                  >
-                    <span
-                      className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${
-                        isPublic ? 'translate-x-[22px]' : 'translate-x-[2px]'
-                      }`}
-                    />
-                  </button>
-                </div>
+                    }
+                  } catch (err) {
+                    showToast('error', `Failed: ${(err as Error).message}`)
+                  } finally {
+                    setNotifLoading(false)
+                  }
+                }}
+                disabled={notifLoading}
+                className={`relative h-6 w-11 rounded-full transition-colors duration-200 ${notifEnabled ? 'bg-brand-500' : 'bg-surface-muted'} disabled:opacity-50`}
+                aria-label={notifEnabled ? 'Disable notifications' : 'Enable notifications'}
+              >
+                <span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${notifEnabled ? 'translate-x-5' : ''}`} />
+              </button>
+            </div>
+          </Card>
+        )}
 
-                {/* Explanation of what becomes visible */}
-                {showPrivacyInfo && isPublic && (
-                  <div className="mt-3 rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-small">
-                    <p className="font-medium text-brand-800 mb-2">When public, others can see:</p>
-                    <ul className="space-y-1 text-brand-700">
-                      <li className="flex items-start gap-2">
-                        <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                        <span>Your username, display name, bio, and avatar</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                        <span>Total documents studied (count only — no titles or content)</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                        <span>Current study streak</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                        <span>Total cards reviewed</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                        <span>Average mastery score</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                        <span>Achievements unlocked</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                        <span>Join date</span>
-                      </li>
-                    </ul>
-                    <div className="mt-3 border-t border-brand-200 pt-2">
-                      <p className="font-medium text-brand-800">Never visible publicly:</p>
-                      <ul className="space-y-0.5 text-brand-600 mt-1">
-                        <li>✗ Document titles, content, or source URLs</li>
-                        <li>✗ Email address</li>
-                        <li>✗ Individual study events or chat queries</li>
-                        <li>✗ Raw flashcard or quiz content</li>
-                        <li>✗ Any data not explicitly listed above</li>
-                      </ul>
-                    </div>
-                  </div>
-                )}
+        {/* Privacy & Data */}
+        <Card padding="lg" className="mb-6 card-lift-hover">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500/20 to-violet-500/5">
+              <Shield className="h-5 w-5 text-violet-500" />
+            </div>
+            <h2 className="text-title-3 text-text">Privacy & Data</h2>
+          </div>
+
+          <div className="space-y-3 mb-5">
+            <p className="text-small text-text-secondary leading-relaxed">
+              Your documents, flashcards, and study data are private to your account. 
+              Content is sent to Mistral AI for processing (summaries, flashcards, quiz generation, and RAG). 
+              We do not share your data with third parties beyond what is necessary for the AI features.
+            </p>
+            {isAnonymous && (
+              <div className="rounded-lg bg-amber-50 px-4 py-3 text-small text-amber-800">
+                <p className="font-medium mb-0.5">Guest account data is ephemeral</p>
+                <p>Sign in with email to keep your study data permanently.</p>
               </div>
             )}
+          </div>
 
-            <div className="space-y-4 text-body text-text-secondary leading-relaxed">
-              <p>
-                <strong className="text-text">What we store:</strong> Your documents, their
-                text content, AI-generated summaries, flashcards, and quiz questions. We store
-                only what is needed to power your study experience.
-              </p>
-              <p>
-                <strong className="text-text">Privacy by design:</strong> Every document and
-                study item is private to your account. No other user can view your materials.
-                All data is scoped by Row-Level Security at the database level.
-              </p>
-              <p>
-                <strong className="text-text">AI processing:</strong> When you upload a
-                document, its text content is sent to Mistral AI's API for embedding,
-                summarization, flashcard generation, quiz generation, and Q&A. Your data
-                is not used to train Mistral's models.
-              </p>
-              {isAnonymous && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-small text-amber-800">
-                  <p className="font-medium">Guest mode — data is ephemeral</p>
-                  <p className="mt-1">
-                    Your current session is anonymous. If you clear your browser data or sign
-                    out, you will lose access to this account.{' '}
-                    <button
-                      onClick={() => { window.location.href = '/login' }}
-                      className="font-medium underline underline-offset-2 hover:text-amber-900"
-                    >
-                      Sign in
-                    </button>{' '}
-                    with email to keep your work permanently.
-                  </p>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between rounded-lg border border-border bg-surface px-4 py-3 transition-all duration-150 hover:border-border-strong">
+              <div className="flex items-center gap-3">
+                <ArrowDownToLine className="h-4 w-4 text-text-muted" />
+                <div>
+                  <p className="text-label font-medium text-text">Export my data</p>
+                  <p className="text-smallest text-text-secondary">Downloads all your data as JSON</p>
                 </div>
+              </div>
+              <Button variant="secondary" size="sm" onClick={handleExport} isLoading={exporting} disabled={exporting}>
+                {exporting ? 'Exporting...' : 'Export'}
+              </Button>
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border border-border bg-surface px-4 py-3 transition-all duration-150 hover:border-border-strong">
+              <div className="flex items-center gap-3">
+                <Trash2 className="h-4 w-4 text-rose-400" />
+                <div>
+                  <p className="text-label font-medium text-text">Delete account</p>
+                  <p className="text-smallest text-text-secondary">Permanently remove all data</p>
+                </div>
+              </div>
+              {showDeleteConfirm ? (
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => setShowDeleteConfirm(false)} disabled={deleting}>
+                    Cancel
+                  </Button>
+                  <Button variant="destructive" size="sm" onClick={handleDeleteAccount} isLoading={deleting} disabled={deleting}>
+                    {deleting ? 'Deleting...' : 'Confirm delete'}
+                  </Button>
+                </div>
+              ) : (
+                <Button variant="destructive" size="sm" onClick={() => setShowDeleteConfirm(true)} disabled={deleting}>
+                  <AlertTriangle className="h-4 w-4" />
+                  Delete
+                </Button>
               )}
             </div>
-          </Card>
-
-          {/* Export Data */}
-          <Card padding="lg">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h3 className="text-label font-semibold text-text">Export my data</h3>
-                <p className="mt-1 text-small text-text-secondary">
-                  Download all your documents, flashcards, quiz questions, and study data
-                  as a JSON file. Vectors are excluded from the export.
-                </p>
-              </div>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={handleExport}
-                isLoading={exporting}
-                disabled={exporting}
-                leadingIcon={!exporting ? <ArrowDownToLine className="h-4 w-4" /> : undefined}
-              >
-                {exporting ? 'Exporting…' : 'Export'}
-              </Button>
-            </div>
-          </Card>
-
-          {/* Delete Account */}
-          <Card variant="outlined" padding="lg" className="border-rose-200">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <Trash2 className="h-4 w-4 text-rose-500" />
-                  <h3 className="text-label font-semibold text-rose-700">Delete account</h3>
-                </div>
-                <p className="mt-1 text-small text-text-secondary">
-                  Permanently delete your account and all associated data. This action is
-                  irreversible — your documents, flashcards, quiz results, and study
-                  progress will be removed immediately.
-                </p>
-              </div>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => setShowDeleteConfirm(true)}
-              >
-                Delete
-              </Button>
-            </div>
-          </Card>
-        </div>
-
-        {/* Delete Confirmation Dialog */}
-        {showDeleteConfirm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
-            <div className="w-full max-w-md rounded-xl border border-border bg-surface p-6 shadow-lg">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-rose-100">
-                  <AlertTriangle className="h-5 w-5 text-rose-600" />
-                </div>
-                <div>
-                  <h3 className="text-label font-semibold text-text">Delete account?</h3>
-                  <p className="text-small text-text-muted">This cannot be undone</p>
-                </div>
-              </div>
-              <p className="mb-6 text-body text-text-secondary">
-                All your documents, flashcards, quiz results, and study data will be
-                permanently removed from our servers. Your account will be deleted and
-                you will not be able to log in again.
-              </p>
-              <div className="flex justify-end gap-3">
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    setShowDeleteConfirm(false)
-                    setDeleting(false)
-                  }}
-                  disabled={deleting}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={handleDeleteAccount}
-                  isLoading={deleting}
-                  disabled={deleting}
-                >
-                  {deleting ? 'Deleting…' : 'Delete my account'}
-                </Button>
-              </div>
-            </div>
           </div>
-        )}
+        </Card>
       </div>
     </PageContainer>
   )
